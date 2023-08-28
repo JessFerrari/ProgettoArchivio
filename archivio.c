@@ -8,17 +8,27 @@
 #include <search.h>
 #include <signal.h>
 #include <unistd.h>  // per sleep
+#include "xerrori.h"
 
 #define Num_elem 1000000
 
-// messaggio errore e stop
-void termina(const char *messaggio){
-  if(errno!=0) perror(messaggio);
-	else fprintf(stderr,"%s\n", messaggio);
-  exit(1);
-}
+// Testa della hash table
+ENTRY *testa_lista_entry = NULL;
 
-// oggetto della hash table
+//struttura dei dati da memorizzare nella tabella hash
+typedef struct {
+  char *key;
+  int data;
+  ENTRY *next;
+} HashEntry;
+
+//creo un oggetto della hash table
+ENTRY *crea_entry(char *s){
+  ENTRY *e = malloc(sizeof(ENTRY));
+  if(e==NULL) termina("errore malloc entry 1");
+  e->key = strdup(s); // salva copia di s
+  e->data = 1;
+}
 
 //distruggo oggetto della hash table
 
@@ -26,6 +36,7 @@ void termina(const char *messaggio){
     - aggiungi
     - conta
 */
+
 void aggiungi(char *s){
 
 }
@@ -33,13 +44,34 @@ void aggiungi(char *s){
 int conta(char *s){
 
 }
-//thread capo scrittore
 
-//thread capo lettore
+/*thread capo scrittore
+  - legge dalla pipe caposc seq di byte
+  - aggiunge 0 in fondo alla seq
+  - tokenizza con  ".,:; \n\r\t"
+  - mette il token nel buffer buffSC
+*/
+void *capo_scrittore(void *arg){
+
+}
+
+/*thread capo lettore
+  - legge dalla pipe capolet seq di byte
+  - tokenizza con  ".,:; \n\r\t"
+  - mette il token nel buffer bufflet
+*/
+void *capo_lettore(void *arg){
+
+}
 
 //corpo dei thread scrittori
-
+void *thread_scrittore(void *arg){
+  
+}
 //corpo dei thread lettori
+void *thread_lettore(void *arg){
+
+}
 
 //gestione dei segnali
 
@@ -48,6 +80,29 @@ int main(int argc, char const *argv[])
   //THREAD GESTORE DEI SEGNALI
 
   //controllo degli elementi della linea di comando
+  if(argc!=3){
+    fprintf(stderr, "Uso : %s <num_thread_lettori> <num_thread_scrittori>\n", argv[0]);
+    exit(1);
+  }
+
+  int num_thread_lettori = atoi(argv[1]);
+  int num_thread_scrittori = atoi(argv[2]);
+
+  /*Ora creo qui le FIFO, ma poi le dovrò far creare dal server*/
+  int e = mkfifo("caposc",0666);
+  if(e==0)
+    puts("FIFO caposc creata\n");
+  else if(errno== EEXIST)
+    puts("La FIFO caposc esiste già; procedo...\n");
+  else    
+    xtermina("Errore creazione named pipe caposc",__LINE__,__FILE__);
+  e = mkfifo("capolet",0666);
+  if(e==0)
+    puts("FIFO capolet creata\n");
+  else if(errno== EEXIST)
+    puts("La FIFO capolet esiste già; procedo...\n");
+  else    
+    xtermina("Errore creazione named pipe capolet",__LINE__,__FILE__);
 
   /*namedpipe: 
     - apro in lettura la FIFO caposc
@@ -61,7 +116,7 @@ int main(int argc, char const *argv[])
   //creazione della hash table
   int ht = hcreate(Num_elem);
   if( ht == 0 ) {
-      termina("Errore creazione HT");
+      xtermina("Errore creazione HT",__LINE__,__FILE__);
   }
 
 
@@ -83,3 +138,4 @@ int main(int argc, char const *argv[])
   return 0;
 
 }
+
