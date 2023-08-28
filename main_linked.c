@@ -90,6 +90,17 @@ int main(int argc, char *argv[])
       distruggi_entry(e); // questa non la devo memorizzare
     }
   }
+
+  puts("\n stampo tablella hash");
+  //stampo la tabella hash
+  for (ENTRY *e  = testa_lista_entry ; e != NULL;) {
+    coppia *c = (coppia *) e->data;
+    printf("%s: %d\n", e->key, c->valore);
+    e = c->next;
+  }
+  puts("\n");
+  
+
   // esegue l'interrogazione della linea di comando incluso argv[0] 
   for(int i=0;i<argc;i++) {
     ENTRY *e = crea_entry(argv[i], 1);

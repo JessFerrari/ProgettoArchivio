@@ -22,4 +22,3 @@ all: $(EXECS)
 	
 clean: 
 	rm -f *.o $(EXECS)
-
