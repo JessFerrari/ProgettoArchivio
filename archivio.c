@@ -12,25 +12,38 @@
 
 #define Num_elem 1000000
 
-// Testa della hash table
-ENTRY *testa_lista_entry = NULL;
 
 //struttura dei dati da memorizzare nella tabella hash
 typedef struct {
-  char *key;
-  int data;
+  int valore;
   ENTRY *next;
-} HashEntry;
+} coppia;
+
+// Testa della hash table
+ENTRY *testa_lista_entry = NULL;
+
 
 //creo un oggetto della hash table
 ENTRY *crea_entry(char *s){
   ENTRY *e = malloc(sizeof(ENTRY));
   if(e==NULL) termina("errore malloc entry 1");
   e->key = strdup(s); // salva copia di s
-  e->data = 1;
+  e->data = malloc(sizeof(coppia));
+  if(e->key==NULL || e->data==NULL)
+    xtermina("errore malloc entry 2", __LINE__, __FILE__);
+  // inizializzo coppia
+  coppia *c = (coppia *) e->data;
+  c->valore = 1;
+  c->next = NULL;
+  return e;
 }
 
 //distruggo oggetto della hash table
+void distruggi_entry(ENTRY *e){
+  free(e->key); 
+  free(e->data); 
+  free(e);
+}
 
 /*funzioni per la hash table
     - aggiungi
