@@ -4,8 +4,11 @@ CC=gcc
 CFLAGS=-std=c11 -Wall -O -g
 LDLIBS=-lm
 
+# definizione degli eseguibili
+EXECS=main main_linked
+
 # se si scrive solo make di default compila main.c
-all: main main_linked
+all: $(EXECS)
 
 # regola per la creazioni degli eseguibili utilizzando xerrori.o
 %.out: %.o xerrori.o
@@ -15,3 +18,8 @@ all: main main_linked
 # regola per la creazione di file oggetto che dipendono da xerrori.h
 %.o: %.c xerrori.h
 	$(CC) $(CFLAGS) -c $<
+
+	
+clean: 
+	rm -f *.o $(EXECS)
+
