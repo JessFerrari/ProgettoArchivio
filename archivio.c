@@ -45,24 +45,41 @@ int conta(char *s){
 
 int main(int argc, char const *argv[])
 {
-    //controllo degli elementi della linea di comando
-    
-    //creazione della hash table
-    int ht = hcreate(Num_elem);
-    if( ht == 0 ) {
-        termina("Errore creazione HT");
-    }
+  //THREAD GESTORE DEI SEGNALI
+
+  //controllo degli elementi della linea di comando
+
+  /*namedpipe: 
+    - apro in lettura la FIFO caposc
+    - apro in lettura la FIFO capolet
+  */
+
+  //buffer condivisi 
+  char buffSC[Num_elem];
+  char bufflet[Num_elem];
+
+  //creazione della hash table
+  int ht = hcreate(Num_elem);
+  if( ht == 0 ) {
+      termina("Errore creazione HT");
+  }
+
+
+  //threads
+
+  //thread CAPO SCRITTORE
+
+  //thread CAPO LETTORE
 
 
 
+  //distruggo la hash table
+  hdestroy();
 
+  /*restituisce sulla linea di comando due interi :
+    - r : che indica il numero di di thread lettori che eseguono l'operazione conta
+    - w : che indica il numero di thread scrittori che eseguono l'operazione aggiungi
+  */ 
+  return 0;
 
-    //distruggo la hash table
-    hdestroy();
-
-    /*restituisce sulla linea di comando due interi :
-     - r : che indica il numero di di thread lettori che eseguono l'operazione conta
-     - w : che indica il numero di thread scrittori che eseguono l'operazione aggiungi
-    */ 
-    return 0;
 }
