@@ -5,7 +5,7 @@ CFLAGS=-std=c11 -Wall -O -g
 LDLIBS=-lm
 
 # definizione degli eseguibili
-EXECS=main main_linked
+EXECS=main main_linked archivio
 
 # se si scrive solo make di default compila main.c
 all: $(EXECS)

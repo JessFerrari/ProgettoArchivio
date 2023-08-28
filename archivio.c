@@ -19,6 +19,25 @@ typedef struct {
   ENTRY *next;
 } coppia;
 
+//struttura thread capo scrittore
+typedef struct{
+  int pipe_sc;
+  int numero_scrittori;
+  char *buffsc;
+} capoScittore;
+
+//struttura thread capo lettore
+typedef struct{
+  int pipe_let;
+  int numero_lettore;
+  char *bufflet;
+} capoLettore;
+
+//struttura thread scrittore
+
+//struttura thread lettore
+
+
 // Testa della hash table
 ENTRY *testa_lista_entry = NULL;
 
@@ -30,7 +49,7 @@ ENTRY *crea_entry(char *s){
   e->key = strdup(s); // salva copia di s
   e->data = malloc(sizeof(coppia));
   if(e->key==NULL || e->data==NULL)
-    xtermina("errore malloc entry 2", __LINE__, __FILE__);
+    termina("errore malloc entry 2");
   // inizializzo coppia
   coppia *c = (coppia *) e->data;
   c->valore = 1;
@@ -55,7 +74,7 @@ void aggiungi(char *s){
   ENTRY *r = hsearch(*e,FIND);
   if(r==NULL) {
     r = hsearch(*e,ENTER);
-    if(r==NULL) xtermina("errore o tabella piena", __LINE__, __FILE__);
+    if(r==NULL) termina("errore o tabella piena");
     coppia *c = (coppia *) e->data;
     // inserisco in testa
     c->next = testa_lista_entry;
@@ -87,7 +106,7 @@ int conta(char *s){
   - mette il token nel buffer buffSC
 */
 void *capo_scrittore(void *arg){
-
+  
 }
 
 /*thread capo lettore
@@ -99,14 +118,14 @@ void *capo_lettore(void *arg){
 
 }
 
-//corpo dei thread scrittori
+/*corpo dei thread scrittori
 void *thread_scrittore(void *arg){
   
 }
 //corpo dei thread lettori
 void *thread_lettore(void *arg){
 
-}
+}*/
 
 //gestione dei segnali
 
@@ -120,29 +139,34 @@ int main(int argc, char const *argv[])
     exit(1);
   }
 
-  int num_thread_lettori = atoi(argv[1]);
-  int num_thread_scrittori = atoi(argv[2]);
+  int r = atoi(argv[1]);
+  int w = atoi(argv[2]);
 
   /*Ora creo qui le FIFO, ma poi le dovrò far creare dal server*/
   int e = mkfifo("caposc",0666);
   if(e==0)
     puts("FIFO caposc creata\n");
-  else if(errno== EEXIST)
+  else if(errno == EEXIST)
     puts("La FIFO caposc esiste già; procedo...\n");
   else    
-    xtermina("Errore creazione named pipe caposc",__LINE__,__FILE__);
+    termina("Errore creazione named pipe caposc");
   e = mkfifo("capolet",0666);
   if(e==0)
     puts("FIFO capolet creata\n");
-  else if(errno== EEXIST)
+  else if(errno == EEXIST)
     puts("La FIFO capolet esiste già; procedo...\n");
   else    
-    xtermina("Errore creazione named pipe capolet",__LINE__,__FILE__);
+    termina("Errore creazione named pipe capolet");
 
-  /*namedpipe: 
+  /*namedpipe: LO DEVONO FARE I THREAD
     - apro in lettura la FIFO caposc
     - apro in lettura la FIFO capolet
-  */
+  */  
+
+  int fsc = open("caposc",O_RDONLY);
+  int flet = open("capolet",O_RDONLY);
+  if ( fsc < 0 )   termina("Errore apertura named pipe");
+  if ( flet < 0 )  termina("Errore apertura named pipe");
 
   //buffer condivisi 
   char buffSC[Num_elem];
@@ -151,16 +175,16 @@ int main(int argc, char const *argv[])
   //creazione della hash table
   int ht = hcreate(Num_elem);
   if( ht == 0 ) {
-      xtermina("Errore creazione HT",__LINE__,__FILE__);
+      termina("Errore creazione HT");
   }
-
 
   //threads
 
   //thread CAPO SCRITTORE
+  
 
   //thread CAPO LETTORE
-
+  
 
 
   //distruggo la hash table
@@ -174,3 +198,7 @@ int main(int argc, char const *argv[])
 
 }
 
+void termina(const char *s) {
+  fprintf(stderr,"%s\n",s);
+  exit(1);
+}
