@@ -1,204 +1,112 @@
-#define _GNU_SOURCE   /* See feature_test_macros(7) */
-#include <stdio.h>    // permette di usare scanf printf etc ...
-#include <stdlib.h>   // conversioni stringa/numero exit() etc ...
-#include <stdbool.h>  // gestisce tipo bool (variabili booleane)
-#include <assert.h>   // permette di usare la funzione assert
-#include <string.h>   // confronto/copia/etc di stringhe
-#include <errno.h>
-#include <search.h>
-#include <signal.h>
-#include <unistd.h>  // per sleep
 #include "xerrori.h"
 
 #define Num_elem 1000000
 
-
-//struttura dei dati da memorizzare nella tabella hash
-typedef struct {
-  int valore;
-  ENTRY *next;
-} coppia;
+void termina(const char *messaggio){
+  if(errno!=0) perror(messaggio);
+	else fprintf(stderr,"%s\n", messaggio);
+  exit(1);
+}
 
 //struttura thread capo scrittore
 typedef struct{
-  int pipe_sc;
   int numero_scrittori;
-  char *buffsc;
-} capoScittore;
+  //char *buffsc;
+} datiCapoScrittore;
 
 //struttura thread capo lettore
 typedef struct{
-  int pipe_let;
-  int numero_lettore;
-  char *bufflet;
-} capoLettore;
+  int numero_lettori;
+  //char *bufflet;
+} datiCapoLettore;
 
-//struttura thread scrittore
-
-//struttura thread lettore
-
-
-// Testa della hash table
-ENTRY *testa_lista_entry = NULL;
-
-
-//creo un oggetto della hash table
-ENTRY *crea_entry(char *s){
-  ENTRY *e = malloc(sizeof(ENTRY));
-  if(e==NULL) termina("errore malloc entry 1");
-  e->key = strdup(s); // salva copia di s
-  e->data = malloc(sizeof(coppia));
-  if(e->key==NULL || e->data==NULL)
-    termina("errore malloc entry 2");
-  // inizializzo coppia
-  coppia *c = (coppia *) e->data;
-  c->valore = 1;
-  c->next = NULL;
-  return e;
-}
-
-//distruggo oggetto della hash table
-void distruggi_entry(ENTRY *e){
-  free(e->key); 
-  free(e->data); 
-  free(e);
-}
-
-/*funzioni per la hash table
-    - aggiungi
-    - conta
+//funzione capo scrittore
+/*
+    - apre la FIFO capolet in lettura
+    - legge una seq di byte
+    - aggiunge 0 in fondo alla seq
+    - tokenizza con  ".,:; \n\r\t"
+    - mette il token nel buffer buffsc
 */
 
-void aggiungi(char *s){
-  ENTRY *e = crea_entry(s);
-  ENTRY *r = hsearch(*e,FIND);
-  if(r==NULL) {
-    r = hsearch(*e,ENTER);
-    if(r==NULL) termina("errore o tabella piena");
-    coppia *c = (coppia *) e->data;
-    // inserisco in testa
-    c->next = testa_lista_entry;
-    testa_lista_entry = e;
-  } else {
-    // la stringa è gia' presente
-    assert(strcmp(e->key,r->key)==0);
-    coppia *d = (coppia *) r->data;
-    d->valore +=1;
-    distruggi_entry(e);
-  }
-}
+void *capo_scrittore_body(void *arg){
+    datiCapoScrittore *cs = (datiCapoScrittore *) arg;
+    //apro la pipe caposc in lettura
+    int fd = open("caposc", O_RDONLY);
+    if(fd==-1){
+        termina("Errore apertura caposc");
+    } 
+    printf ("Aperto la pipe caposc\n");
+    
+    //leggo una sequenza di byte finchè non finisco
+    char input_buffer[2048];
+    size_t bytes_letti;
+    while(true){
 
-int conta(char *s){
-  //cerco s nella tabella hash
-  ENTRY *e = crea_entry(s);
-  ENTRY *r = hsearch(*e,FIND);
-  if(r==NULL) return 0;
-  coppia *c = (coppia *) e->data;
-  int conto = c->valore;
-  distruggi_entry(e);
-  return conto;
-}
+        bytes_letti = read(fd, input_buffer, 2048); 
+        if(bytes_letti==0){
+            printf("FIFO chiusa in scrittura\n");
+            break;
+        }
+        printf("lettura %zu bytes\n", bytes_letti);
+        printf("lettura %s\n", input_buffer);
+        //aggiungo 0 alla fine della stringa
+        input_buffer[bytes_letti] = '0'; 
+        input_buffer[bytes_letti+1] = '\0';
+        printf("aggiungo 0 alla fine della stringa : %s\n", input_buffer);
 
-/*thread capo scrittore
-  - legge dalla pipe caposc seq di byte
-  - aggiunge 0 in fondo alla seq
-  - tokenizza con  ".,:; \n\r\t"
-  - mette il token nel buffer buffSC
-*/
-void *capo_scrittore(void *arg){
-  
-}
-
-/*thread capo lettore
-  - legge dalla pipe capolet seq di byte
-  - tokenizza con  ".,:; \n\r\t"
-  - mette il token nel buffer bufflet
-*/
-void *capo_lettore(void *arg){
+        //tokenizzo la stringa
+        int i=0;
+        char *token = strtok(input_buffer, ".,:; \n\r\t");
+        while(token != NULL){
+            printf("Token %d: %s\n", i, token);
+            token = strtok(NULL, ".,:; \n\r\t");
+            i++;
+        }
+        
+    }
+    printf("Devo creare %d thread ausiliari\n", cs->numero_scrittori);
+    close(fd);
+    pthread_exit(NULL);
 
 }
 
-/*corpo dei thread scrittori
-void *thread_scrittore(void *arg){
-  
-}
-//corpo dei thread lettori
-void *thread_lettore(void *arg){
+//funzione capo lettore
+/*void *capo_lettore_body(void *arg){
+    datiCapoLettore *cl = (datiCapoLettore *) arg;
+    //apro la pipe capolet in lettura
+    int fd = open("capolet", O_RDONLY);
+    if(fd==-1){
+        xtermina("Errore apertura capolet", __LINE__, __FILE__);
+    }
 
 }*/
 
-//gestione dei segnali
+int main (int argc, char *argv[]){
+    
+    if(argc!=3){
+        fprintf(stderr, "Uso : %s <num_thread_scrittori> <num_thread_lettori>\n", argv[0]);
+        exit(1);
+    }
 
-int main(int argc, char const *argv[])
-{
-  //THREAD GESTORE DEI SEGNALI
+    //numero di thread lettori e scrittori che devono partire oltre ai capi 
+    int w = atoi(argv[1]);
+    //int r = atoi(argv[2]);
+    
 
-  //controllo degli elementi della linea di comando
-  if(argc!=3){
-    fprintf(stderr, "Uso : %s <num_thread_lettori> <num_thread_scrittori>\n", argv[0]);
-    exit(1);
-  }
+    //creo il thread capo scrittore 
+    pthread_t capo_scrittore;
+    datiCapoScrittore cs;
+    cs.numero_scrittori = w;
+    pthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs);
 
-  int r = atoi(argv[1]);
-  int w = atoi(argv[2]);
-
-  /*Ora creo qui le FIFO, ma poi le dovrò far creare dal server*/
-  int e = mkfifo("caposc",0666);
-  if(e==0)
-    puts("FIFO caposc creata\n");
-  else if(errno == EEXIST)
-    puts("La FIFO caposc esiste già; procedo...\n");
-  else    
-    termina("Errore creazione named pipe caposc");
-  e = mkfifo("capolet",0666);
-  if(e==0)
-    puts("FIFO capolet creata\n");
-  else if(errno == EEXIST)
-    puts("La FIFO capolet esiste già; procedo...\n");
-  else    
-    termina("Errore creazione named pipe capolet");
-
-  /*namedpipe: LO DEVONO FARE I THREAD
-    - apro in lettura la FIFO caposc
-    - apro in lettura la FIFO capolet
-  */  
-
-  int fsc = open("caposc",O_RDONLY);
-  int flet = open("capolet",O_RDONLY);
-  if ( fsc < 0 )   termina("Errore apertura named pipe");
-  if ( flet < 0 )  termina("Errore apertura named pipe");
-
-  //buffer condivisi 
-  char buffSC[Num_elem];
-  char bufflet[Num_elem];
-
-  //creazione della hash table
-  int ht = hcreate(Num_elem);
-  if( ht == 0 ) {
-      termina("Errore creazione HT");
-  }
-
-  //threads
-
-  //thread CAPO SCRITTORE
-  
-
-  //thread CAPO LETTORE
-  
+    pthread_join(capo_scrittore, NULL);
 
 
-  //distruggo la hash table
-  hdestroy();
 
-  /*restituisce sulla linea di comando due interi :
-    - r : che indica il numero di di thread lettori che eseguono l'operazione conta
-    - w : che indica il numero di thread scrittori che eseguono l'operazione aggiungi
-  */ 
-  return 0;
+    //creo il capo lettore
+    //pthread_t capo_lettore;
 
-}
 
-void termina(const char *s) {
-  fprintf(stderr,"%s\n",s);
-  exit(1);
+    return 0;
 }
