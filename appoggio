@@ -1,0 +1,120 @@
+
+
+//struttura dei dati da memorizzare nella tabella hash
+typedef struct {
+  int valore;
+  ENTRY *next;
+} coppia;
+
+// Testa della hash table
+ENTRY *testa_lista_entry = NULL;
+
+
+//creo un oggetto della hash table
+ENTRY *crea_entry(char *s){
+  ENTRY *e = malloc(sizeof(ENTRY));
+  if(e==NULL) termina("errore malloc entry 1");
+  e->key = strdup(s); // salva copia di s
+  e->data = malloc(sizeof(coppia));
+  if(e->key==NULL || e->data==NULL)
+    termina("errore malloc entry 2");
+  // inizializzo coppia
+  coppia *c = (coppia *) e->data;
+  c->valore = 1;
+  c->next = NULL;
+  return e;
+}
+
+//distruggo oggetto della hash table
+void distruggi_entry(ENTRY *e){
+  free(e->key); 
+  free(e->data); 
+  free(e);
+}
+
+
+void aggiungi(char *s){
+  ENTRY *e = crea_entry(s);
+  ENTRY *r = hsearch(*e,FIND);
+  if(r==NULL) {
+    r = hsearch(*e,ENTER);
+    if(r==NULL) termina("errore o tabella piena");
+    coppia *c = (coppia *) e->data;
+    // inserisco in testa
+    c->next = testa_lista_entry;
+    testa_lista_entry = e;
+  } else {
+    // la stringa è gia' presente
+    assert(strcmp(e->key,r->key)==0);
+    coppia *d = (coppia *) r->data;
+    d->valore +=1;
+    distruggi_entry(e);
+  }
+}
+
+int conta(char *s){
+  //cerco s nella tabella hash
+  ENTRY *e = crea_entry(s);
+  ENTRY *r = hsearch(*e,FIND);
+  if(r==NULL) return 0;
+  coppia *c = (coppia *) e->data;
+  int conto = c->valore;
+  distruggi_entry(e);
+  return conto;
+}
+
+
+int main(int argc, char const *argv[])
+{
+  //THREAD GESTORE DEI SEGNALI
+
+  //controllo degli elementi della linea di comando
+  if(argc!=3){
+    fprintf(stderr, "Uso : %s <num_thread_lettori> <num_thread_scrittori>\n", argv[0]);
+    exit(1);
+  }
+
+  //int r = atoi(argv[1]);
+  int w = atoi(argv[2]);
+
+ 
+
+  //buffer condivisi 
+  char buffSC[Num_elem];
+  //char bufflet[Num_elem];
+
+  //creazione della hash table
+  int ht = hcreate(Num_elem);
+  if( ht == 0 ) {
+      termina("Errore creazione HT");
+  }
+
+  //threads
+
+  //thread CAPO SCRITTORE
+  capoScittore cs;
+  cs.numero_scrittori = w;
+  cs.buffsc = buffSC;
+  pthread_t capo_scrittore;
+  pthread_create(&capo_scrittore, NULL, capo_scrittore_thread, &cs);
+  
+
+  //thread CAPO LETTORE
+  
+
+
+  //distruggo la hash table
+  hdestroy();
+
+  /*restituisce sulla linea di comando due interi :
+    - r : che indica il numero di di thread lettori che eseguono l'operazione conta
+    - w : che indica il numero di thread scrittori che eseguono l'operazione aggiungi
+  */ 
+  return 0;
+
+}
+
+void termina(const char *s) {
+  fprintf(stderr,"%s\n",s);
+  exit(1);
+}
