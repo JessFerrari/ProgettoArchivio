@@ -19,6 +19,8 @@ all: $(EXECS)
 %.o: %.c xerrori.h
 	$(CC) $(CFLAGS) -c $<
 
+
+
 	
 clean: 
 	rm -f *.o $(EXECS)
