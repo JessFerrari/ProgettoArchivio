@@ -30,26 +30,59 @@ typedef struct{
 */
 
 void *capo_scrittore_body(void *arg){
+    //prendo i dati allegati al thread
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
+
+
     //apro la pipe caposc in lettura
     int fd = open("caposc", O_RDONLY);
     if(fd==-1){
-        termina("Errore apertura caposc");
+        termina("Errore apertura caposc.\n");
     } 
     printf ("Aperto la pipe caposc\n");
     
-    //leggo una sequenza di byte finchè non finisco
-    char input_buffer[2048];
+    int dimensione = 0;
+    char *input_buffer = malloc(dimensione * sizeof(char));
+    if(input_buffer==NULL){
+        termina("[MALLOC] Errore allocazione memoria");
+    }
     size_t bytes_letti;
-    while(true){
 
-        bytes_letti = read(fd, input_buffer, 2048); 
+
+    while(true){
+        //leggo la lunghezza della sequenza di byte
+        bytes_letti = read(fd, &dimensione, sizeof(int));
+        if(bytes_letti==0){
+            printf("FIFO chiusa in lettura\n");
+            break;
+        }
+        if(bytes_letti != sizeof(int)){
+            perror("Errore nella lettura della lunghezza della sequenza di byte");
+            break;
+        }
+        printf("dimensione %d\n", dimensione);
+
+        //realloco il buffer con la dimensione giusta
+        input_buffer = realloc(input_buffer, dimensione * sizeof(char));
+        if(input_buffer==NULL){
+            termina("[REALLOC] Errore allocazione memoria");
+        }
+
+        //leggo la sequenza di n byte
+        bytes_letti = read(fd, input_buffer, dimensione); 
+        printf("lettura %zu bytes : %s\n", bytes_letti, input_buffer);
+        
         if(bytes_letti==0){
             printf("FIFO chiusa in scrittura\n");
             break;
         }
-        printf("lettura %zu bytes\n", bytes_letti);
-        printf("lettura %s\n", input_buffer);
+
+        if(bytes_letti != dimensione){
+            perror("Errore nella lettura della sequenza di byte");
+        }
+    
+
+
         //aggiungo 0 alla fine della stringa
         input_buffer[bytes_letti] = '0'; 
         input_buffer[bytes_letti+1] = '\0';
@@ -65,6 +98,9 @@ void *capo_scrittore_body(void *arg){
         }
         
     }
+
+
+
     printf("Devo creare %d thread ausiliari\n", cs->numero_scrittori);
     close(fd);
     pthread_exit(NULL);

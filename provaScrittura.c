@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
     //Apro il file
     FILE *f = fopen(argv[1], "r");
     if(f==NULL) {
-        termina("Errore apertura file");
+        termina("Errore apertura file\n");
     }
 
     //Per la lettura dal file
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     //Apro la named pipe in modalità di scrittura
     int fd = open("caposc", O_WRONLY);
     if (fd == -1) {
-        perror("Errore nell'apertura della named pipe");
+        perror("Errore nell'apertura della named pipe\n");
         return 1;
     }
 
@@ -35,10 +35,22 @@ int main(int argc, char *argv[]) {
 
     puts("\nLeggo dal file:\n");
     while((read = getline(&line, &len, f)) != -1) {
-        printf("%s\n", line);
+        printf("%s\n", line );
+
+        int dimensione = read;
+        printf ("Dimensione: %d\n\n", dimensione);
+        //scrivo la dimensione della sequenza
+        ssize_t writedim = write(fd, &dimensione, sizeof(int));
+        if (writedim == -1) {
+            perror("Errore nella scrittura nella named pipe\n");
+            close(fd);
+            return 1;
+        }
+
+        //scrivo la sequenza
         ssize_t writen = write(fd, line, read);
         if (writen == -1) {
-            perror("Errore nella scrittura nella named pipe");
+            perror("Errore nella scrittura nella named pipe\n");
             close(fd);
             return 1;
         }
