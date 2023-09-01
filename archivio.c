@@ -3,13 +3,8 @@
 
 
 #define Num_elem 1000000
-#define PC_buffer_len 10
+#define PC_buffer_len 1000000
 
-void termina(const char *messaggio){
-  if(errno!=0) perror(messaggio);
-	else fprintf(stderr,"%s\n", messaggio);
-  exit(1);
-}
 
 //struttura thread capo scrittore
 typedef struct{
@@ -19,7 +14,17 @@ typedef struct{
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
 } datiCapoScrittore;
- 
+
+typedef struct{
+    int ident;
+    char **buffsc;
+    int *index;
+    pthread_mutex_t *mutexsc;
+    sem_t *sem_free_slots;
+    sem_t *sem_data_items;
+} datiScrittori;
+
+
 //struttura thread capo lettore
 typedef struct{
   int numero_lettori;
@@ -35,27 +40,48 @@ typedef struct{
     - mette il token nel buffer buffsc
 */
 
+void *scrittore_body(void *arg){
+    puts("Scrittore partito");
+    
+    datiScrittori *ds = (datiScrittori *) arg;
+    printf("Scrittore %d\n", ds->ident);
+    puts("scrittore sta per finire");
+    pthread_exit(NULL);
+}
+
 void *capo_scrittore_body(void *arg){
+    puts("Capo scrittore partito\n");
     //prendo i dati allegati al thread
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
 
+    pthread_mutex_t ms = PTHREAD_MUTEX_INITIALIZER;
+    pthread_t ts[*(cs->numero_scrittori)];
+    datiScrittori ds[*(cs->numero_scrittori)];
+
     //creo i thread scrittori
     for(int i=0; i<*(cs->numero_scrittori); i++){
-    
+        ds[i].buffsc = cs->buffsc;
+        ds[i].index = cs->index;
+        ds[i].sem_free_slots = cs->sem_free_slots;
+        ds[i].sem_data_items = cs->sem_data_items;
+        ds[i].mutexsc = &ms;
+        ds[i].ident = i;
+        xpthread_create(&ts[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
     }
+    puts("Thread scrittori creati\n");
 
 
     //apro la pipe caposc in lettura
     int fd = open("caposc", O_RDONLY);
     if(fd==-1){
-        termina("Errore apertura caposc.\n");
+        xtermina("Errore apertura caposc.\n", __LINE__, __FILE__);
     } 
     printf ("Aperto la pipe caposc\n");
     
     int dimensione = 0;
     char *input_buffer = malloc(dimensione * sizeof(char));
     if(input_buffer==NULL){
-        termina("[MALLOC] Errore allocazione memoria");
+        xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
     }
     size_t bytes_letti;
 
@@ -76,7 +102,7 @@ void *capo_scrittore_body(void *arg){
         //realloco il buffer con la dimensione giusta
         input_buffer = realloc(input_buffer, dimensione * sizeof(char));
         if(input_buffer==NULL){
-            termina("[REALLOC] Errore allocazione memoria");
+            xtermina("[REALLOC] Errore allocazione memoria", __LINE__, __FILE__);
         }
 
         //leggo la sequenza di n byte
@@ -134,8 +160,13 @@ void *capo_scrittore_body(void *arg){
         printf("%s\n", cs->buffsc[j]);
     }*/
 
+ 
+    for(int i=0; i<*(cs->numero_scrittori); i++){
+        pthread_join(ts[i], NULL);
+    }
+    pthread_mutex_destroy(&ms);
 
-    printf("Devo creare %d thread ausiliari\n", *(cs->numero_scrittori));
+
     close(fd);
     pthread_exit(NULL);
 
@@ -167,7 +198,7 @@ int main (int argc, char *argv[]){
     int index=0;
     char **buffsc = malloc(PC_buffer_len * sizeof(char));
     if(buffsc==NULL){
-        termina("[MALLOC] Errore allocazione memoria");
+        xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
     }
     //semafori per gli scrittori
     sem_t sem_free_slot_sc;
@@ -192,6 +223,7 @@ int main (int argc, char *argv[]){
     //creo il capo lettore
     //pthread_t capo_lettore;
 
+    free(buffsc);
 
     return 0;
 }
