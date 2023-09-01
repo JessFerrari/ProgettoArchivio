@@ -41,34 +41,55 @@ typedef struct{
 */
 
 void *scrittore_body(void *arg){
-    puts("Scrittore partito");
+    //puts("Scrittore partito");
     
     datiScrittori *ds = (datiScrittori *) arg;
-    printf("Scrittore %d\n", ds->ident);
-    puts("scrittore sta per finire");
+    //printf("Scrittore %d\n", ds->ident);
+    char *parola = "";
+
+    do{
+        //faccio la wait sul semaforo dei dati
+        xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
+        //acquisto la mutex
+        xpthread_mutex_lock(ds->mutexsc, QUI);
+        //leggo nel buffer
+        parola = ds->buffsc[*(ds->index) % PC_buffer_len];
+        *(ds->index) += 1;
+        //rilascio la mutex
+        xpthread_mutex_unlock(ds->mutexsc, QUI);
+        //faccio la signal sul semaforo dei free slot
+        xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
+
+        if(parola != NULL) printf ("Il thread %d ha letto la parola %s\n", ds->ident, parola);
+
+    }while(parola != NULL);
+
+
+    //puts("scrittore sta per finire");
     pthread_exit(NULL);
 }
 
 void *capo_scrittore_body(void *arg){
-    puts("Capo scrittore partito\n");
+    //puts("Capo scrittore partito\n");
     //prendo i dati allegati al thread
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
 
     pthread_mutex_t ms = PTHREAD_MUTEX_INITIALIZER;
     pthread_t ts[*(cs->numero_scrittori)];
     datiScrittori ds[*(cs->numero_scrittori)];
+    int sindex = 0;
 
     //creo i thread scrittori
     for(int i=0; i<*(cs->numero_scrittori); i++){
         ds[i].buffsc = cs->buffsc;
-        ds[i].index = cs->index;
+        ds[i].index = &sindex;
         ds[i].sem_free_slots = cs->sem_free_slots;
         ds[i].sem_data_items = cs->sem_data_items;
         ds[i].mutexsc = &ms;
         ds[i].ident = i;
         xpthread_create(&ts[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
     }
-    puts("Thread scrittori creati\n");
+    //puts("Thread scrittori creati\n");
 
 
     //apro la pipe caposc in lettura
@@ -76,7 +97,7 @@ void *capo_scrittore_body(void *arg){
     if(fd==-1){
         xtermina("Errore apertura caposc.\n", __LINE__, __FILE__);
     } 
-    printf ("Aperto la pipe caposc\n");
+    //printf ("Aperto la pipe caposc\n");
     
     int dimensione = 0;
     char *input_buffer = malloc(dimensione * sizeof(char));
@@ -97,7 +118,7 @@ void *capo_scrittore_body(void *arg){
             perror("Errore nella lettura della lunghezza della sequenza di byte");
             break;
         }
-        printf("dimensione %d\n", dimensione);
+        //printf("dimensione %d\n", dimensione);
 
         //realloco il buffer con la dimensione giusta
         input_buffer = realloc(input_buffer, dimensione * sizeof(char));
@@ -107,7 +128,7 @@ void *capo_scrittore_body(void *arg){
 
         //leggo la sequenza di n byte
         bytes_letti = read(fd, input_buffer, dimensione); 
-        printf("lettura %zu bytes : %s\n", bytes_letti, input_buffer);
+        //printf("lettura %zu bytes : %s\n", bytes_letti, input_buffer);
         
         if(bytes_letti==0){
             printf("FIFO chiusa in scrittura\n");
@@ -123,42 +144,45 @@ void *capo_scrittore_body(void *arg){
         //aggiungo 0 alla fine della stringa
         input_buffer[bytes_letti] = 0x00; 
         input_buffer[bytes_letti+1] = '\0';
-        printf("aggiungo 0 alla fine della stringa : %s\n", input_buffer);
-        printf("La dimensione della seq ora è : %ld\n", bytes_letti+1);
+        //printf("aggiungo 0 alla fine della stringa : %s\n", input_buffer);
+        //printf("La dimensione della seq ora è : %ld\n", bytes_letti+1);
 
         //tokenizzo la stringa
     
         char *copia;
         char *token = strtok(input_buffer, ".,:; \n\r\t");
         while(token != NULL){
-            printf("Token %d: %s\n",*(cs->index), token);
+            //printf("Token %d: %s\n",*(cs->index), token);
             //duplico il token
             copia = strdup(token);
             //aggiungo la copia del token al buffer
-            printf("aggiungo %s al buffer\n", copia);
+            //printf("aggiungo %s al buffer\n", copia);
 
             sem_wait(cs->sem_free_slots);
-            cs->buffsc[*(cs->index)%PC_buffer_len] = copia;
-            printf("%s\n", cs->buffsc[*(cs->index)]);
+            if (copia != NULL ) {cs->buffsc[*(cs->index)%PC_buffer_len] = copia;}
+            //printf("%s\n", cs->buffsc[*(cs->index)]);
             sem_post(cs->sem_data_items); 
-
+            
             token = strtok(NULL, ".,:; \n\r\t");;
             *(cs->index) = *(cs->index) + 1;
         }
         
-        //stampo il buffer
+        /*stampo il buffer
         puts("\n\nbuffer :");
         for(int j=0; j<=*(cs->index); j++){
             printf("%s\n", cs->buffsc[j]);
-        }
+        }*/
         
     }
 
-    /*stampo il buffer finale
-    puts("\n\nbuffer finale :");
+    //aggiungo null nel buffer
     for(int j=0; j<=*(cs->index); j++){
-        printf("%s\n", cs->buffsc[j]);
-    }*/
+        sem_wait(cs->sem_free_slots);
+        cs->buffsc[*(cs->index)%PC_buffer_len] = NULL;
+        sem_post(cs->sem_data_items);
+    }
+
+    
 
  
     for(int i=0; i<*(cs->numero_scrittori); i++){
