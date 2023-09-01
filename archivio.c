@@ -3,7 +3,7 @@
 
 
 #define Num_elem 1000000
-#define PC_buffer_len 1000000
+#define PC_buffer_len 10
 
 
 //struttura thread capo scrittore
@@ -45,7 +45,7 @@ void *scrittore_body(void *arg){
     
     datiScrittori *ds = (datiScrittori *) arg;
     //printf("Scrittore %d\n", ds->ident);
-    char *parola = "";
+    char *parola;
 
     do{
         //faccio la wait sul semaforo dei dati
