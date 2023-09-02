@@ -8,8 +8,8 @@ void termina(const char *messaggio){
 }
 
 int main(int argc, char *argv[]) {
-    if(argc!=2) {
-        fprintf(stderr, "Uso : %s <nome_file>\n", argv[0]);
+    if(argc!=3) {
+        fprintf(stderr, "Uso : %s <nome_file> <nome_pipe>\n", argv[0]);
         exit(1);
     }
 
@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
     ssize_t read;
 
     //Apro la named pipe in modalità di scrittura
-    int fd = open("caposc", O_WRONLY);
+    int fd = open(argv[2], O_WRONLY);
     if (fd == -1) {
         perror("Errore nell'apertura della named pipe\n");
         return 1;
