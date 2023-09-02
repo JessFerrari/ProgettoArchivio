@@ -6,7 +6,7 @@
 #define PC_buffer_len 10
 
 
-//struttura thread capo scrittore
+//struttura thread capo scrittore e scrittori
 typedef struct{
   int *numero_scrittori;
   char **buffsc;
@@ -25,29 +25,32 @@ typedef struct{
 } datiScrittori;
 
 
-//struttura thread capo lettore
+//struttura thread capo lettore e lettori
 typedef struct{
   int numero_lettori;
   char **bufflet;
 } datiCapoLettore;
 
-//funzione capo scrittore
-/*
-    - apre la FIFO capolet in lettura
-    - legge una seq di byte
-    - aggiunge 0 in fondo alla seq
-    - tokenizza con  ".,:; \n\r\t"
-    - mette il token nel buffer buffsc
+typedef struct{
+    int ident;
+} datiLettore;
+
+
+
+/*Funzione scrittore :
+    - legge dal buffer degli scrittori le parole
+    - aggiunge ogni parola nella hash table
 */
 
 void *scrittore_body(void *arg){
-    //puts("Scrittore partito");
+    puts("Scrittore partito"); 
     
     datiScrittori *ds = (datiScrittori *) arg;
     //printf("Scrittore %d\n", ds->ident);
     char *parola;
-
+    int nparole = 0;
     do{
+        printf("[INDEX SCRITTORI]: %d\n", *(ds->index));
         //faccio la wait sul semaforo dei dati
         xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
         //acquisto la mutex
@@ -60,17 +63,31 @@ void *scrittore_body(void *arg){
         //faccio la signal sul semaforo dei free slot
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
 
-        if(parola != NULL) printf ("Il thread %d ha letto la parola %s\n", ds->ident, parola);
-
+        if(parola != NULL) {
+            printf("Il thread %d ha letto la parola %s\n", ds->ident, parola);
+            nparole++;
+        }
     }while(parola != NULL);
 
+    printf("Il thread %d ha letto %d parole\n", ds->ident, nparole);
 
     //puts("scrittore sta per finire");
     pthread_exit(NULL);
 }
 
+
+
+//funzione capo scrittore
+/*
+    - apre la FIFO capolet in lettura
+    - legge una seq di byte
+    - aggiunge 0 in fondo alla seq
+    - tokenizza con  ".,:; \n\r\t"
+    - mette il token nel buffer buffsc
+*/
 void *capo_scrittore_body(void *arg){
     //puts("Capo scrittore partito\n");
+   
     //prendo i dati allegati al thread
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
 
@@ -78,6 +95,7 @@ void *capo_scrittore_body(void *arg){
     pthread_t ts[*(cs->numero_scrittori)];
     datiScrittori ds[*(cs->numero_scrittori)];
     int sindex = 0;
+    int nparole = 0;
 
     //creo i thread scrittori
     for(int i=0; i<*(cs->numero_scrittori); i++){
@@ -159,12 +177,16 @@ void *capo_scrittore_body(void *arg){
             //printf("aggiungo %s al buffer\n", copia);
 
             sem_wait(cs->sem_free_slots);
-            if (copia != NULL ) {cs->buffsc[*(cs->index)%PC_buffer_len] = copia;}
+            if (copia != NULL ) {
+                cs->buffsc[*(cs->index)%PC_buffer_len] = copia;
+                printf("buffer[%d]: %s\n",*(cs->index)%PC_buffer_len ,cs->buffsc[*(cs->index)%PC_buffer_len]);    
+                *(cs->index) = *(cs->index) + 1;
+            }
             //printf("%s\n", cs->buffsc[*(cs->index)]);
             sem_post(cs->sem_data_items); 
+            nparole += 1;
+            token = strtok(NULL, ".,:; \n\r\t");
             
-            token = strtok(NULL, ".,:; \n\r\t");;
-            *(cs->index) = *(cs->index) + 1;
         }
         
         /*stampo il buffer
@@ -175,11 +197,15 @@ void *capo_scrittore_body(void *arg){
         
     }
 
-    //aggiungo null nel buffer
-    for(int j=0; j<=*(cs->index); j++){
+    printf("Il thread capo ha scritto %d parole\n", nparole);
+
+    //Termino scrittori : aggiungo null nel buffer
+    for(int j=0; j<=*(cs->numero_scrittori); j++){
         sem_wait(cs->sem_free_slots);
-        cs->buffsc[*(cs->index)%PC_buffer_len] = NULL;
+        cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
         sem_post(cs->sem_data_items);
+        //*(cs->index) = *(cs->index) + 1;
+        printf("buffer[%d]: %s\n",*(cs->index)%PC_buffer_len ,cs->buffsc[*(cs->index)%PC_buffer_len]);    
     }
 
     
@@ -227,8 +253,8 @@ int main (int argc, char *argv[]){
     //semafori per gli scrittori
     sem_t sem_free_slot_sc;
     sem_t sem_data_items_sc;
-    sem_init(&sem_free_slot_sc, 0, PC_buffer_len);
-    sem_init(&sem_data_items_sc, 0, 0);
+    xsem_init(&sem_free_slot_sc, 0, PC_buffer_len, __LINE__, __FILE__);
+    xsem_init(&sem_data_items_sc, 0, 0, __LINE__, __FILE__);
 
     //creo il thread capo scrittore 
     pthread_t capo_scrittore;
