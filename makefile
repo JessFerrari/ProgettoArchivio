@@ -7,7 +7,7 @@ LDLIBS=-lm -lrt -pthread
 
 
 # definizione degli eseguibili
-EXECS=main.out main_linked.out archivio.out provaScrittura.out
+EXECS=main.out main_linked.out archivio.out archivioPulito.out provaScrittura.out
 
 # se si scrive solo make di default compila main.c
 all: $(EXECS)
