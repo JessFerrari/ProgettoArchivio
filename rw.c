@@ -21,6 +21,7 @@ void *scrittore_body(void *arg){
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
         //parola = ds->buffsc[*(ds->index)];
         //fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
+        aggiungi(parola);
         *(ds->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);
@@ -56,6 +57,7 @@ void *capo_scrittore_body(void *arg){
         ds[i].sem_data_items = cs->sem_data_items;
         ds[i].mutex = &mutexS;
         ds[i].id = i;
+        ds[i].hasht = cs->hasht;
         xpthread_create(&tS[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
     }
 
@@ -207,6 +209,7 @@ void *capo_lettore_body(void *arg){
         dl[i].sem_data_items = cl->sem_data_items;
         dl[i].mutex = &mutexL;
         dl[i].id = i;
+        dl[i].hasht = cl->hasht;
         xpthread_create(&tL[i], NULL, lettore_body, dl+i, __LINE__, __FILE__);
     }
 

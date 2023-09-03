@@ -2,7 +2,7 @@
 
 #include "hash.h"
 
-#define Num_elem 1000000
+
 ENTRY *testa_lista_entry = NULL;
 
 //creo un oggetto della hash table
@@ -55,4 +55,15 @@ int conta(char *s){
   int conto = c->valore;
   distruggi_entry(e);
   return conto;
+}
+
+
+void print_hashtable(){
+  puts("\n stampo tablella hash");
+  for (ENTRY *e  = testa_lista_entry ; e != NULL;) {
+    coppia *c = (coppia *) e->data;
+    printf("%s: %d\n", e->key, c->valore);
+    e = c->next;
+  }
+  puts("\n");
 }

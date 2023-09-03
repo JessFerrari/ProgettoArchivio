@@ -64,7 +64,8 @@ int conta(char *s){
   ENTRY *e = crea_entry(s, 1);
   ENTRY *r = hsearch(*e,FIND);
   if(r==NULL) return 0;
-  coppia *c = (coppia *) e->data;
+  assert(strcmp(e->key,r->key)==0);
+  coppia *c = (coppia *) r->data;
   int conto = c->valore;
   distruggi_entry(e);
   return conto;

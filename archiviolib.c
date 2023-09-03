@@ -1,5 +1,5 @@
 #include "rw.h"
-#include "hash.h"
+
 
 int main (int argc, char *argv[]){
     
@@ -11,6 +11,19 @@ int main (int argc, char *argv[]){
     int w = atoi(argv[1]);
     int r = atoi(argv[2]);
     char *SL = argv[3];
+
+    hashtable *ht = malloc(sizeof(hashtable));
+    //creo la hash table che verrà condivisa tra scrittori e lettori
+    int ht_fd = hcreate(Num_elem);
+    if (ht_fd==0) {
+        xtermina("Errore creazione ht", __LINE__, __FILE__);
+    }
+    ht->fd = ht_fd;
+    //condition variables e mutex per lavorare sulla hash table
+    pthread_cond_t cond_ht = PTHREAD_COND_INITIALIZER;
+    pthread_mutex_t mutex_ht = PTHREAD_MUTEX_INITIALIZER;
+    ht->mutex_ht = &mutex_ht;
+    ht->cv_ht = &cond_ht;
 
     if(strcmp(SL, "l")){
         //buffer per gli scrittori
@@ -34,11 +47,16 @@ int main (int argc, char *argv[]){
         cs.index = &indexSC;
         cs.sem_free_slots = &sem_free_slots_sc;
         cs.sem_data_items = &sem_data_items_sc;
+        cs.hasht = ht;
         
         //creo il thread capo scrittore
         xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
         //aspetto il capo scrittore
         pthread_join(capo_scrittore, NULL);
+
+
+        print_hashtable();
+        hdestroy();
 
         free(buffsc);
     }
@@ -66,6 +84,7 @@ int main (int argc, char *argv[]){
         cl.index = &indexLET;
         cl.sem_free_slots = &sem_free_slots_let;
         cl.sem_data_items = &sem_data_items_let;
+        cl.hasht = ht;
         //creo il thread capo lettore
         xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
         //aspetto il capo lettore

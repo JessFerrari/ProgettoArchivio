@@ -1,6 +1,7 @@
 /*Libreria per la creazione dei thread lettori e scrittori*/
 
 #include "xerrori.h"
+#include "hash.h"
 #define QUI __LINE__,__FILE__
 
 #define PC_buffer_len 10
@@ -12,6 +13,7 @@ typedef struct datiCapoScrittore{
   int *index;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
+  hashtable *hasht;
 } datiCapoScrittore;
 
 //struttura scrittore
@@ -22,6 +24,7 @@ typedef struct datiScrittori{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
+    hashtable *hasht;
 } datiScrittori;
 
 //struttura capo lettore
@@ -31,6 +34,7 @@ typedef struct datiCapoLettore{
   int *index;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
+  hashtable *hasht;
 } datiCapoLettore;
 
 //struttura lettore
@@ -41,6 +45,7 @@ typedef struct datiLettori{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
+    hashtable *hasht;
 } datiLettori;
 
 void *scrittore_body (void *arg);
