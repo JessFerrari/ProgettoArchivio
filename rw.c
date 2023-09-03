@@ -7,13 +7,13 @@
 void *scrittore_body(void *arg){
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
-    fprintf(stdout, "Scrittore %d partito:\n", ds->id);
+    //fprintf(stdout, "Scrittore %d partito:\n", ds->id);
 
     char *parola;
     int np = 0;
 
     do{
-        fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
+        //fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
         //per leggere una parola dal buffer devo acquisire la mutex
@@ -32,7 +32,7 @@ void *scrittore_body(void *arg){
 
     }while(parola != NULL);
 
-    fprintf(stdout, "SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, np);
+    //fprintf(stdout, "SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, np);
     pthread_exit(NULL);
 }
 
@@ -40,7 +40,7 @@ void *scrittore_body(void *arg){
 void *capo_scrittore_body(void *arg){
     //recupero i dati
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
-    fprintf(stdout, "CAPO SCRITTORE PARTITO\n");
+    //fprintf(stdout, "CAPO SCRITTORE PARTITO\n");
 
     //inizializzo i dati per gli scrittori
     pthread_mutex_t mutexS = PTHREAD_MUTEX_INITIALIZER;
@@ -118,7 +118,7 @@ void *capo_scrittore_body(void *arg){
             if(copia != NULL){
                 cs->buffsc[*(cs->index) % PC_buffer_len] = copia;
                 //cs->buffsc[*(cs->index)] = copia;
-                fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
+                //fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
                 *(cs->index) += 1;
             }
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
@@ -130,16 +130,16 @@ void *capo_scrittore_body(void *arg){
 
     }
 
-    fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", np);
+    //fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", np);
     
 
-    fprintf(stdout, "\n Prima di terminare gli scrittori lindice è %d\n\n", *(cs->index)%PC_buffer_len);
+    //fprintf(stdout, "\n Prima di terminare gli scrittori lindice è %d\n\n", *(cs->index)%PC_buffer_len);
     //termino gli scrittori aggiungendo null nel buffer
     for(int i=0; i<*(cs->numero_scrittori); i++){
         xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
         cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
         //cs->buffsc[*(cs->index)] = NULL;
-        fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
+        //fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
         *(cs->index) += 1;
         xsem_post(cs->sem_data_items, __LINE__, __FILE__);
     }
@@ -160,13 +160,13 @@ void *capo_scrittore_body(void *arg){
 void *lettore_body(void *arg){
     //recupero i dati
     datiLettori *dl = (datiLettori *) arg;
-    fprintf(stdout, "Lettore %d partito:\n", dl->id);
+    //fprintf(stdout, "Lettore %d partito:\n", dl->id);
 
     char *parola;
     int np = 0;
 
     do{
-        fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
+        //fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(dl->sem_data_items, __LINE__, __FILE__);
         //per leggere una parola dal buffer devo acquisire la mutex
@@ -183,7 +183,7 @@ void *lettore_body(void *arg){
 
     }while(parola != NULL);
 
-    fprintf(stdout, "LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
+    //fprintf(stdout, "LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
     pthread_exit(NULL);
 }
 
@@ -191,7 +191,7 @@ void *lettore_body(void *arg){
 void *capo_lettore_body(void *arg){
     //recupero i dati
     datiCapoLettore *cl = (datiCapoLettore *) arg;
-    fprintf(stdout, "CAPO LETTORE PARTITO\n");
+    //fprintf(stdout, "CAPO LETTORE PARTITO\n");
 
     //inizializzo i dati per i lettori
     pthread_mutex_t mutexL = PTHREAD_MUTEX_INITIALIZER;
@@ -280,15 +280,15 @@ void *capo_lettore_body(void *arg){
 
     }
 
-    fprintf(stdout, "CAPO LETTORE HA SCRITTO %d PAROLE\n", np);
+    //fprintf(stdout, "CAPO LETTORE HA SCRITTO %d PAROLE\n", np);
     
 
-    fprintf(stdout, "\n Prima di terminare i lettori lindice è %d\n\n", *(cl->index)%PC_buffer_len);
+    //fprintf(stdout, "\n Prima di terminare i lettori lindice è %d\n\n", *(cl->index)%PC_buffer_len);
     //termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
         cl->bufflet[*(cl->index) % PC_buffer_len] = NULL;
-        fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
+        //fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
         *(cl->index) += 1;
         xsem_post(cl->sem_data_items, __LINE__, __FILE__);
     }
