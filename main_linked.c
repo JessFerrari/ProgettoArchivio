@@ -27,7 +27,7 @@ typedef struct {
 
 // orribile variabile globale per memorizzare la testa
 // della lista delle entry che sono dentro la tabella hash
-ENTRY *testa_lista_entry = NULL;
+ENTRY *testa_lista_entry_main = NULL;
 
 
 // messaggio errore e stop
@@ -78,9 +78,9 @@ int main(int argc, char *argv[])
       // in cima alla lista delle entry inserite
       coppia *c = (coppia *) e->data;
       // salvo la vecchia lista dentro c->next
-      c->next = testa_lista_entry;
+      c->next = testa_lista_entry_main;
       // e diventa la testa della lista
-      testa_lista_entry = e;
+      testa_lista_entry_main = e;
     }
     else {
       // la stringa è gia' presente incremento il valore
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 
   puts("\n stampo tablella hash");
   //stampo la tabella hash
-  for (ENTRY *e  = testa_lista_entry ; e != NULL;) {
+  for (ENTRY *e  = testa_lista_entry_main ; e != NULL;) {
     coppia *c = (coppia *) e->data;
     printf("%s: %d\n", e->key, c->valore);
     e = c->next;
@@ -117,5 +117,5 @@ int main(int argc, char *argv[])
 /* Si noti che quando si esegue questo programma con valgrind i blocchi
    che non sono deallocati (la parte della deallocazione dovete scriverla 
    voi) non figurano più come `lost`, ma `still_reachable` in quanto ancora
-   raggingibili partendo dalla variabile globale  testa_lista_entry
+   raggingibili partendo dalla variabile globale  testa_lista_entry_main
 */
