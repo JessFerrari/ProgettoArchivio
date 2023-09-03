@@ -1,7 +1,64 @@
 #include "xerrori.h"
+#include <search.h>
 #define QUI __LINE__,__FILE__
 
 #define PC_buffer_len 10
+#define Num_elem 1000000
+ENTRY *testa_lista_entry = NULL;
+
+//flista per le entry
+typedef struct {
+  int valore;    // numero di occorrenze della stringa 
+  ENTRY *next;  
+} coppia;
+//funzioni per hash table
+
+//creo un oggetto della hash table
+ENTRY *crea_entry(char *s, int n) {
+  ENTRY *e = malloc(sizeof(ENTRY));
+  if(e==NULL) xtermina("errore malloc entry 1", __LINE__, __FILE__);
+  e->key = strdup(s); // salva copia di s
+  e->data = malloc(sizeof(coppia));
+  if(e->key==NULL || e->data==NULL)
+    xtermina("errore malloc entry 2", __LINE__, __FILE__);
+  // inizializzo coppia
+  coppia *c = (coppia *) e->data; // cast obbligatorio
+  c->valore  = n;
+  c->next = NULL;
+  return e;
+}
+
+
+// dealloca la memoria usata dalla ENTRY *e 
+void distruggi_entry(ENTRY *e)
+{
+  free(e->key); free(e->data); free(e);
+}
+
+ENTRY *aggiungi (char *s){
+  ENTRY *e = crea_entry(s, 1);
+  ENTRY *r = hsearch(*e,FIND);
+  if(r==NULL) {
+    r = hsearch(*e,ENTER);
+    if(r==NULL) xtermina("errore o tabella piena\n", __LINE__, __FILE__);
+    coppia *c = (coppia *) e->data;
+    // inserisco in testa
+    c->next = testa_lista_entry;
+    testa_lista_entry = e;
+    printf(" parola : %s valore : %d\n", e->key, c->valore);
+    
+  } else {
+      //la stringa è gia' presente
+      assert(strcmp(e->key,r->key)==0);
+      coppia *d = (coppia *) r->data;
+      d->valore +=1;
+      printf(" parola : %s valore : %d\n", e->key, d->valore);
+      distruggi_entry(e);
+      
+  }
+  return testa_lista_entry;
+}
+
 
 //struttura capo scrittore
 typedef struct{
@@ -10,6 +67,8 @@ typedef struct{
   int *index;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
+  int *ht;
+
 } datiCapoScrittore;
 
 //struttura scrittore
@@ -40,6 +99,7 @@ typedef struct{
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
 } datiLettori;
+
 
 
 //Funzione scrittore
@@ -170,6 +230,11 @@ void *capo_scrittore_body(void *arg){
     }
 
     fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", np);
+
+
+    testa_lista_entry = aggiungi("testa");
+    testa_lista_entry = aggiungi("coda");
+    testa_lista_entry = aggiungi("coda");
     
 
     fprintf(stdout, "\n Prima di terminare gli scrittori lindice è %d\n\n", *(cs->index)%PC_buffer_len);
@@ -355,6 +420,8 @@ int main (int argc, char *argv[]){
     int w = atoi(argv[1]);
     int r = atoi(argv[2]);
     char *SL = argv[3];
+    int ht = hcreate(Num_elem);
+    if(ht==0 ) xtermina("Errore creazione HT", __LINE__, __FILE__);
 
     if(strcmp(SL, "l")){
         //buffer per gli scrittori
@@ -378,6 +445,7 @@ int main (int argc, char *argv[]){
         cs.index = &indexSC;
         cs.sem_free_slots = &sem_free_slots_sc;
         cs.sem_data_items = &sem_data_items_sc;
+        cs.ht = &ht;
         
         //creo il thread capo scrittore
         xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
@@ -410,6 +478,7 @@ int main (int argc, char *argv[]){
         cl.index = &indexLET;
         cl.sem_free_slots = &sem_free_slots_let;
         cl.sem_data_items = &sem_data_items_let;
+        
         //creo il thread capo lettore
         xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
         //aspetto il capo lettore
