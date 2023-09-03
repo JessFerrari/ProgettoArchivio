@@ -19,8 +19,8 @@ archivio: archivio.c xerrori.c
 	$(CC) $(CFLAGS) -o archivio archivio.c xerrori.c
 
 
-archiviolib: archiviolib.c xerrori.c rw.c
-	$(CC) $(CFLAGS) -o archiviolib archiviolib.c xerrori.c rw.c
+archiviolib: archiviolib.c xerrori.c rw.c hash.c
+	$(CC) $(CFLAGS) -o archiviolib archiviolib.c xerrori.c rw.c hash.c
 
 # esegu la cancellazione dei file oggetto e degli eseguibili
 clean: 
