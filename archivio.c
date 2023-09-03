@@ -59,6 +59,16 @@ ENTRY *aggiungi (char *s){
   return testa_lista_entry;
 }
 
+int conta(char *s){
+  //cerco s nella tabella hash
+  ENTRY *e = crea_entry(s, 1);
+  ENTRY *r = hsearch(*e,FIND);
+  if(r==NULL) return 0;
+  coppia *c = (coppia *) e->data;
+  int conto = c->valore;
+  distruggi_entry(e);
+  return conto;
+}
 
 //struttura capo scrittore
 typedef struct{
@@ -79,6 +89,7 @@ typedef struct{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
+    int *ht;
 } datiScrittori;
 
 //struttura capo lettore
@@ -88,6 +99,7 @@ typedef struct{
   int *index;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
+  int *ht;
 } datiCapoLettore;
 
 //struttura lettore
@@ -98,6 +110,7 @@ typedef struct{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
+    int *ht;
 } datiLettori;
 
 
@@ -118,6 +131,7 @@ void *scrittore_body(void *arg){
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(ds->mutex, QUI);
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
+        if(parola!=NULL) testa_lista_entry = aggiungi(parola);
         //parola = ds->buffsc[*(ds->index)];
         //fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
         *(ds->index) += 1;
@@ -155,6 +169,7 @@ void *capo_scrittore_body(void *arg){
         ds[i].sem_data_items = cs->sem_data_items;
         ds[i].mutex = &mutexS;
         ds[i].id = i;
+        ds[i].ht = cs->ht;
         xpthread_create(&tS[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
     }
 
@@ -232,11 +247,6 @@ void *capo_scrittore_body(void *arg){
     fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", np);
 
 
-    testa_lista_entry = aggiungi("testa");
-    testa_lista_entry = aggiungi("coda");
-    testa_lista_entry = aggiungi("coda");
-    
-
     fprintf(stdout, "\n Prima di terminare gli scrittori lindice è %d\n\n", *(cs->index)%PC_buffer_len);
     //termino gli scrittori aggiungendo null nel buffer
     for(int i=0; i<*(cs->numero_scrittori); i++){
@@ -268,6 +278,7 @@ void *lettore_body(void *arg){
 
     char *parola;
     int np = 0;
+    int conto = 0;
 
     do{
         fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
@@ -276,6 +287,8 @@ void *lettore_body(void *arg){
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(dl->mutex, QUI);
         parola = dl->bufflet[*(dl->index) % PC_buffer_len];
+        if(parola!=NULL) {conto = conta(parola);
+        printf("Parola : %s, Conto : %d\n", parola, conto); }
         *(dl->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(dl->mutex, QUI);
@@ -311,6 +324,7 @@ void *capo_lettore_body(void *arg){
         dl[i].sem_data_items = cl->sem_data_items;
         dl[i].mutex = &mutexL;
         dl[i].id = i;
+        dl[i].ht = cl->ht;
         xpthread_create(&tL[i], NULL, lettore_body, dl+i, __LINE__, __FILE__);
     }
 
@@ -383,7 +397,7 @@ void *capo_lettore_body(void *arg){
         }
 
     }
-
+   
     fprintf(stdout, "CAPO LETTORE HA SCRITTO %d PAROLE\n", np);
     
 
@@ -422,6 +436,25 @@ int main (int argc, char *argv[]){
     char *SL = argv[3];
     int ht = hcreate(Num_elem);
     if(ht==0 ) xtermina("Errore creazione HT", __LINE__, __FILE__);
+    testa_lista_entry = aggiungi("sono");
+    testa_lista_entry = aggiungi("solo");
+    testa_lista_entry = aggiungi("una");
+    testa_lista_entry = aggiungi("parola");
+    testa_lista_entry = aggiungi("nuova");
+    testa_lista_entry = aggiungi("parola");
+
+    //stampo la tabella
+      puts("\n stampo tablella hash");
+    //stampo la tabella hash
+    for (ENTRY *e  = testa_lista_entry ; e != NULL;) {
+        coppia *c = (coppia *) e->data;
+        printf("%s: %d\n", e->key, c->valore);
+        e = c->next;
+    }
+    puts("\n");
+
+    printf("Conta 'parola' : %d\n", conta("parola"));
+  
 
     if(strcmp(SL, "l")){
         //buffer per gli scrittori
@@ -478,6 +511,7 @@ int main (int argc, char *argv[]){
         cl.index = &indexLET;
         cl.sem_free_slots = &sem_free_slots_let;
         cl.sem_data_items = &sem_data_items_let;
+        cl.ht = &ht;
         
         //creo il thread capo lettore
         xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
