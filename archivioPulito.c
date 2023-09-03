@@ -211,8 +211,6 @@ void *lettore_body(void *arg){
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(dl->mutex, QUI);
         parola = dl->bufflet[*(dl->index) % PC_buffer_len];
-        //parola = dl->bufflet[*(dl->index)];
-        //fprintf(stdout, "LETTORE %d, INDEX %d, PAROLA %s\n", dl->id, *(dl->index), parola);
         *(dl->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(dl->mutex, QUI);
@@ -220,7 +218,7 @@ void *lettore_body(void *arg){
         xsem_post(dl->sem_free_slots, __LINE__, __FILE__);
         np++;
 
-        //devo poi contare la parola dalla tabella hash
+        //devo poi aggiungere la parola nella tabella hash
 
     }while(parola != NULL);
 
@@ -234,7 +232,7 @@ void *capo_lettore_body(void *arg){
     datiCapoLettore *cl = (datiCapoLettore *) arg;
     fprintf(stdout, "CAPO LETTORE PARTITO\n");
 
-    //inizializzo i dati per gli scrittori
+    //inizializzo i dati per i lettori
     pthread_mutex_t mutexL = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tL[*(cl->numero_lettori)];
     datiLettori dl [*(cl->numero_lettori)];
@@ -309,9 +307,8 @@ void *capo_lettore_body(void *arg){
             xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cl->bufflet[*(cl->index) % PC_buffer_len] = copia;
-                //cl->bufflet[*(cl->index)] = copia;
-                *(cl->index) += 1;
                 fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
+                *(cl->index) += 1;
             }
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cl->sem_data_items, __LINE__, __FILE__);
@@ -323,21 +320,19 @@ void *capo_lettore_body(void *arg){
     }
 
     fprintf(stdout, "CAPO LETTORE HA SCRITTO %d PAROLE\n", np);
-
     
 
-    fprintf(stdout, "\n Prima di terminare i lettori l'indice è %d\n\n", *(cl->index)%PC_buffer_len);
+    fprintf(stdout, "\n Prima di terminare i lettori lindice è %d\n\n", *(cl->index)%PC_buffer_len);
     //termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
         cl->bufflet[*(cl->index) % PC_buffer_len] = NULL;
-        //cl->buffsc[*(cl->index)] = NULL;
+        fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
         *(cl->index) += 1;
-        fprintf(stdout, "BUFFER LET[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
         xsem_post(cl->sem_data_items, __LINE__, __FILE__);
     }
 
-    //aspetto i thread scrittori
+    //aspetto i thread lettori
     for (int i=0; i<*(cl->numero_lettori); i++){
         pthread_join(tL[i], NULL);
     }
