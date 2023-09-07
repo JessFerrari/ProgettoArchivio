@@ -71,15 +71,24 @@ int conta(char *s){
   return conto;
 }
 
+typedef struct {
+    int *ht;
+    //condion variabile
+    pthread_mutex_t *mutex;
+    pthread_cond_t *cond;
+    int *messi;
+} vettoreht;
+
 //struttura capo scrittore
 typedef struct{
-  int *numero_scrittori;
-  char **buffsc;
-  int *index;
-  sem_t *sem_free_slots;
-  sem_t *sem_data_items;
-  int *ht;
-
+    int *numero_scrittori;
+    char **buffsc;
+    int *index;
+    sem_t *sem_free_slots;
+    sem_t *sem_data_items;
+    int *ht;
+    //vettore 
+   
 } datiCapoScrittore;
 
 //struttura scrittore
@@ -91,6 +100,7 @@ typedef struct{
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
     int *ht;
+  
 } datiScrittori;
 
 //struttura capo lettore
@@ -100,7 +110,7 @@ typedef struct{
   int *index;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
-  int *ht;
+
 } datiCapoLettore;
 
 //struttura lettore
@@ -111,7 +121,8 @@ typedef struct{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
-    int *ht;
+  
+
 } datiLettori;
 
 
@@ -132,17 +143,30 @@ void *scrittore_body(void *arg){
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(ds->mutex, QUI);
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
-        if(parola!=NULL) testa_lista_entry = aggiungi(parola);
         //parola = ds->buffsc[*(ds->index)];
         //fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
         *(ds->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);
+          
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
         np++;
 
-        //devo poi aggiungere la parola nella tabella hash
+
+        /*aggiungo la parola nella tabella hash
+        if(parola!=NULL) {
+            xpthread_mutex_lock(ds->ht->mutex, QUI);
+            while(ds->ht->messi > Num_elem){
+                fprintf(stdout, "Il thread %d è in attesa perchè la tabella ha %d elementi = %d \n", ds->id, ds->ht->messi, Num_elem);
+                xpthread_cond_wait(ds->ht->cond, ds->ht->mutex, QUI);
+            }
+            testa_lista_entry = aggiungi(parola);
+            ds->ht->messi++;
+            xpthread_mutex_unlock(ds->ht->mutex, QUI);
+        }*/
+      
+  
 
     }while(parola != NULL);
 
@@ -161,6 +185,7 @@ void *capo_scrittore_body(void *arg){
     pthread_t tS[*(cs->numero_scrittori)];
     datiScrittori ds [*(cs->numero_scrittori)];
     int indexS = 0;
+    
 
     //creo i thread scrittori
     for(int i=0; i<*(cs->numero_scrittori); i++){
@@ -170,7 +195,8 @@ void *capo_scrittore_body(void *arg){
         ds[i].sem_data_items = cs->sem_data_items;
         ds[i].mutex = &mutexS;
         ds[i].id = i;
-        ds[i].ht = cs->ht;
+    
+        
         xpthread_create(&tS[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
     }
 
@@ -188,7 +214,7 @@ void *capo_scrittore_body(void *arg){
     }
     size_t bytes_letti;
 
-    //leggo dal buffer
+    //scrivo buffer
     int np = 0;
     while(true){
         //leggo la dimensione della sequenza di bytes
@@ -325,7 +351,7 @@ void *capo_lettore_body(void *arg){
         dl[i].sem_data_items = cl->sem_data_items;
         dl[i].mutex = &mutexL;
         dl[i].id = i;
-        dl[i].ht = cl->ht;
+
         xpthread_create(&tL[i], NULL, lettore_body, dl+i, __LINE__, __FILE__);
     }
 
@@ -343,7 +369,7 @@ void *capo_lettore_body(void *arg){
     }
     size_t bytes_letti;
 
-    //leggo dal buffer
+    //scrivo nel buffer
     int np = 0;
     while(true){
         //leggo la dimensione della sequenza di bytes
@@ -437,26 +463,19 @@ int main (int argc, char *argv[]){
     char *SL = argv[3];
     int ht = hcreate(Num_elem);
     if(ht==0 ) xtermina("Errore creazione HT", __LINE__, __FILE__);
-    testa_lista_entry = aggiungi("sono");
-    testa_lista_entry = aggiungi("solo");
-    testa_lista_entry = aggiungi("una");
-    testa_lista_entry = aggiungi("parola");
-    testa_lista_entry = aggiungi("nuova");
-    testa_lista_entry = aggiungi("parola");
+    /*vettoreht tabella = malloc(sizeof(vettoreht));
+    tabella.ht = &ht;
+    condition variables
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+    tabella.mutex = &mutex;
+    tabella.cond = &cond;
+    int messi = 0;
+    tabella.messi = messi;
+    */
 
-    //stampo la tabella
-      puts("\n stampo tablella hash");
-    //stampo la tabella hash
-    for (ENTRY *e  = testa_lista_entry ; e != NULL;) {
-        coppia *c = (coppia *) e->data;
-        printf("%s: %d\n", e->key, c->valore);
-        e = c->next;
-    }
-    puts("\n");
-
-    printf("Conta 'parola' : %d\n", conta("parola"));
   
-
+    //scrittori
     if(strcmp(SL, "l")){
         //buffer per gli scrittori
         int indexSC = 0;
@@ -479,7 +498,7 @@ int main (int argc, char *argv[]){
         cs.index = &indexSC;
         cs.sem_free_slots = &sem_free_slots_sc;
         cs.sem_data_items = &sem_data_items_sc;
-        cs.ht = &ht;
+       
         
         //creo il thread capo scrittore
         xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
@@ -512,8 +531,7 @@ int main (int argc, char *argv[]){
         cl.index = &indexLET;
         cl.sem_free_slots = &sem_free_slots_let;
         cl.sem_data_items = &sem_data_items_let;
-        cl.ht = &ht;
-        
+     
         //creo il thread capo lettore
         xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
         //aspetto il capo lettore
