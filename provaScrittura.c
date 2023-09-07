@@ -1,37 +1,20 @@
 #include "xerrori.h"
+#define QUI __LINE__, __FILE__
 
-
-void termina(const char *messaggio){
-    if(errno!=0) perror(messaggio);
-    else fprintf(stderr,"%s\n", messaggio);
-    exit(1);
-}
-
-int main(int argc, char *argv[]) {
-    if(argc!=3) {
-        fprintf(stderr, "Uso : %s <nome_file> <nome_pipe>\n", argv[0]);
+int main(int argc, char *argv[]){
+    if(argc<3){
+        fprintf(stdout, "Uso : %s <nome file sc> <nome file lt>\n", argv[0]);
         exit(1);
     }
-
-    //Apro il file
-    FILE *f = fopen(argv[1], "r");
-    if(f==NULL) {
-        termina("Errore apertura file\n");
-    }
-
     //Per la lettura dal file
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
 
-    //Apro la named pipe in modalità di scrittura
-    int fd = open(argv[2], O_WRONLY);
-    if (fd == -1) {
-        perror("Errore nell'apertura della named pipe\n");
-        return 1;
-    }
-
-
+    //apro il file in lettura
+    FILE *f = xfopen(argv[1], "r", __LINE__, __FILE__);
+    //Apro la pipe caposc in scrittura
+    int fd = open("caposc", O_WRONLY);
 
     puts("\nLeggo dal file:\n");
     while((read = getline(&line, &len, f)) != -1) {
@@ -56,12 +39,50 @@ int main(int argc, char *argv[]) {
         }
     }
 
-
     free(line);
     //Chiudo il file
     fclose(f);
     //Chiudo la named pipe
     close(fd);
+    
+    //leggo il secondo file
+    char *line_l= NULL;
+    size_t len_l = 0;
+    ssize_t read_l;
+    //apro il file in lettura
+    FILE *fl = xfopen(argv[2], "r", __LINE__, __FILE__);
+    //Apro la pipe caposc in scrittura
+    int fd_l = open("capolet", O_WRONLY);
+
+    puts("\nLeggo dal file:\n");
+    while((read_l = getline(&line_l, &len_l, fl)) != -1) {
+        printf("%s\n", line_l );
+
+        int dimensione = read_l;
+        printf ("Dimensione: %d\n\n", dimensione);
+        //scrivo la dimensione della sequenza
+        ssize_t writedim = write(fd_l, &dimensione, sizeof(int));
+        if (writedim == -1) {
+            perror("Errore nella scrittura nella named pipe\n");
+            close(fd_l);
+            return 1;
+        }
+
+        //scrivo la sequenza
+        ssize_t writen = write(fd_l, line_l, read_l);
+        if (writen == -1) {
+            perror("Errore nella scrittura nella named pipe\n");
+            close(fd_l);
+            return 1;
+        }
+    }
+
+    free(line_l);
+    //Chiudo il file
+    fclose(fl);
+    //Chiudo la named pipe
+    close(fd_l);
+    
 
 
     return 0;
