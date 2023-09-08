@@ -11,6 +11,12 @@ EXECS=main main_linked  provaScrittura  archivio appoggio
 # se si scrive solo make di default compila main.c
 all: $(EXECS)
 
+main : main.c 
+	$(CC) $(CFLAGS) -o main main.c
+
+main_linked : main_linked.c 
+	$(CC) $(CFLAGS) -o main_linked main_linked.c
+
 provaScrittura: provaScrittura.c xerrori.c
 	$(CC) $(CFLAGS) -o provaScrittura provaScrittura.c xerrori.c
 
