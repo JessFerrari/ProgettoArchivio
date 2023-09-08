@@ -495,7 +495,7 @@ void distruggi_entry(ENTRY *e){
   free(e->key); free(e->data); free(e);
 }
 
-/*void aggiungi (char *s){
+void aggiungi (char *s){
   ENTRY *e = crea_entry(s, 1);
   ENTRY *r = hsearch(*e,FIND);
   if(r==NULL) {
@@ -513,9 +513,9 @@ void distruggi_entry(ENTRY *e){
     c->valore +=1;
     distruggi_entry(e);
   }
-}*/
+}
 
-/*int conta(char *s) {
+int conta(char *s) {
   int tmp;
   // printf("Thread lettore %d conta %s\n", gettid(), s);
   ENTRY *e = crea_entry(s, 1);
@@ -530,4 +530,4 @@ void distruggi_entry(ENTRY *e){
   // Distruggo la entry 'creata' perché non va allocata
   distruggi_entry(e);
   return tmp;
-}*/
+}
