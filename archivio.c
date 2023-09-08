@@ -159,7 +159,7 @@ int main (int argc, char *argv[]){
 }
 
 
-/*Funzione scrittore
+//Funzione scrittore
 void *scrittore_body(void *arg){
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
@@ -183,8 +183,8 @@ void *scrittore_body(void *arg){
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
         np++; //incremento il numero di parole lette
 
-        aggiungo la parola nella tabella hash
-        if(parola!=NULL) {
+        //aggiungo la parola nella tabella hash
+        /*if(parola!=NULL) {
             xpthread_mutex_lock(ds->ht->mutex, QUI);
             while(ds->ht->messi > Num_elem){
                 fprintf(stdout, "Il thread %d è in attesa perchè la tabella ha %d elementi = %d \n", ds->id, ds->ht->messi, Num_elem);
@@ -193,13 +193,13 @@ void *scrittore_body(void *arg){
             testa_lista_entry = aggiungi(parola);
             ds->ht->messi++;
             xpthread_mutex_unlock(ds->ht->mutex, QUI);
-        }
+        }*/
       
     }while(parola != NULL);
 
     fprintf(stdout, "SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, np);
     pthread_exit(NULL);
-}*/
+}
 
 //Funzione capo scrittore
 void *capo_scrittore_body(void *arg){
@@ -209,7 +209,7 @@ void *capo_scrittore_body(void *arg){
     fprintf(stdout, "CAPO SCRITTORE PARTITO\n");
     
 
-    /*inizializzo i dati per gli scrittori
+    //inizializzo i dati per gli scrittori
     int indexS = 0;
     pthread_mutex_t mutexS = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tS[*(cs->numero_scrittori)];
@@ -225,7 +225,7 @@ void *capo_scrittore_body(void *arg){
         ds[i].mutex = &mutexS;
         ds[i].id = i;        
         xpthread_create(&tS[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
-    } */
+    } 
 
     //apro la pipe CAPOSC da cui leggerò le sequenze di byte
     int fd = open(FIFO_CAPOSC, O_RDONLY);
@@ -304,19 +304,19 @@ void *capo_scrittore_body(void *arg){
     
     //termino gli scrittori aggiungendo null nel buffer
     
-    /*for(int i=0; i<*(cs->numero_scrittori); i++){
+    for(int i=0; i<*(cs->numero_scrittori); i++){
         xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
         cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
         //fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
         *(cs->index) += 1;
         xsem_post(cs->sem_data_items, __LINE__, __FILE__);
-    }*/
+    }
 
-    /*aspetto i thread scrittori
+    //aspetto i thread scrittori
     for (int i=0; i<*(cs->numero_scrittori); i++){
         pthread_join(tS[i], NULL);
     }
-    pthread_mutex_destroy(&mutexS);*/
+    pthread_mutex_destroy(&mutexS);
 
     free(input_buffer);
     close(fd);

@@ -368,16 +368,14 @@ void *capo_lettore_body(void *arg){
 
 //Funzione scrittore
 void *scrittore_body(void *arg){
-
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
     fprintf(stdout, "Scrittore %d partito:\n", ds->id);
 
-    //variabili che uso per leggere le parole dal buffer
     char *parola;
+    int np = 0;
 
     do{
-
         fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
@@ -388,45 +386,13 @@ void *scrittore_body(void *arg){
         *(ds->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);
-        //incremento il numero di parole lette
-        *(ds->np) += 1;
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
+        np++; //incremento il numero di parole lette
 
+      
     }while(parola != NULL);
 
-    fprintf(stdout, "SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, *(ds->np));
+    fprintf(stdout, "SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, np);
     pthread_exit(NULL);
 }
-
-/*Funzione lettore
-void *lettore_body(void *arg){
-    //recupero i dati
-    datiLettori *dl = (datiLettori *) arg;
-    fprintf(stdout, "Lettore %d partito:\n", dl->id);
-
-    char *parola;
-    int np = 0;
-    //int conto = 0;
-
-    do{
-        fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
-        //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
-        xsem_wait(dl->sem_data_items, __LINE__, __FILE__);
-        //per leggere una parola dal buffer devo acquisire la mutex
-        xpthread_mutex_lock(dl->mutex, QUI);
-        parola = dl->bufflet[*(dl->index) % PC_buffer_len];
-        *(dl->index) += 1;
-        //rilascio la mutex
-        xpthread_mutex_unlock(dl->mutex, QUI);
-        //ho liberato un posto nel buffer e quindi faccio la post
-        xsem_post(dl->sem_free_slots, __LINE__, __FILE__);
-        np++;
-
-        //devo poi aggiungere la parola nella tabella hash
-
-    }while(parola != NULL);
-
-    fprintf(stdout, "LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
-    pthread_exit(NULL);
-}*/
