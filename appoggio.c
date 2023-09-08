@@ -78,7 +78,7 @@ typedef struct {
 } coppia;
 
 
-//main
+//----------------------------------------main-------------------------------------------
 int main (int argc, char *argv[]){
     
     if(argc<3){
@@ -159,6 +159,7 @@ int main (int argc, char *argv[]){
     free(bufflet);
     return 0;
 }
+//----------------------------------fine main --------------------------------
 
 
 //Funzione capo scrittore
@@ -206,7 +207,7 @@ void *capo_scrittore_body(void *arg){
         ssize_t bytes_letti = read(fd, &size, sizeof(int));
 
         if(bytes_letti == 0){
-            printf("FIFO chiusa in lettura\n");
+            fprintf(stdout,"FIFO chiusa in lettura\n");
             break;
         }
 
@@ -232,7 +233,6 @@ void *capo_scrittore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        //input_buffer[bytes_letti] = 0x00; 
         input_buffer[bytes_letti] = '\0';
 
         //tokenizzo la stringa
@@ -245,7 +245,7 @@ void *capo_scrittore_body(void *arg){
             xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cs->buffsc[*(cs->index) % PC_buffer_len] = copia;
-                fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
+                //fprintf(stdout, "BUFFER SCRITTORE [%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
                 *(cs->index) += 1;
             }
             *(cs->np) += 1;
@@ -263,7 +263,7 @@ void *capo_scrittore_body(void *arg){
     for(int i=0; i<*(cs->numero_scrittori); i++){
         xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
         cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
-        //fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
+        //fprintf(stdout, "BUFFER SCRITTORE[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
         *(cs->index) += 1;
         xsem_post(cs->sem_data_items, __LINE__, __FILE__);
     }
@@ -330,8 +330,7 @@ void *capo_lettore_body(void *arg){
             perror("Errore nella lettura della sequenza di byte");
         }
 
-        //aggiungo 0 alla fine della stringa
-        //input_buffer[bytes_letti] = 0x00; 
+        //aggiungo 0 alla fine della stringa 
         input_buffer[bytes_letti] = '\0';
 
         //tokenizzo la stringa
@@ -344,7 +343,7 @@ void *capo_lettore_body(void *arg){
             xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cl->bufflet[*(cl->index) % PC_buffer_len] = copia;
-                fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
+                //fprintf(stdout, "BUFFER LETTORE[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
                 *(cl->index) += 1;
             }
             *(cl->np) += 1;
@@ -376,13 +375,13 @@ void *scrittore_body(void *arg){
     int np = 0;
 
     do{
-        fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
+        //fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(ds->mutex, QUI);
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
-        //fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
+        fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
         *(ds->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);

@@ -163,13 +163,13 @@ int main (int argc, char *argv[]){
 void *scrittore_body(void *arg){
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
-    fprintf(stdout, "Scrittore %d partito:\n", ds->id);
+    //fprintf(stdout, "Scrittore %d partito:\n", ds->id);
 
     char *parola;
     int np = 0;
 
     do{
-        fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
+        //fprintf(stdout,"[INDEX SCRITORE %d] : %d\n", ds->id, *(ds->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
         //per leggere una parola dal buffer devo acquisire la mutex
@@ -272,8 +272,7 @@ void *capo_scrittore_body(void *arg){
             perror("Errore nella lettura della sequenza di byte");
         }
 
-        //aggiungo 0 alla fine della stringa
-        //input_buffer[bytes_letti] = 0x00; 
+        //aggiungo 0 alla fine della stringa 
         input_buffer[bytes_letti] = '\0';
 
         //tokenizzo la stringa
@@ -286,7 +285,7 @@ void *capo_scrittore_body(void *arg){
             xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cs->buffsc[*(cs->index) % PC_buffer_len] = copia;
-                fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
+                //fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
                 *(cs->index) += 1;
             }
             *(cs->np) += 1;
@@ -325,25 +324,25 @@ void *capo_scrittore_body(void *arg){
 }
 
 
-/*Funzione lettore
+//Funzione lettore
 void *lettore_body(void *arg){
     //recupero i dati
     datiLettori *dl = (datiLettori *) arg;
-    fprintf(stdout, "Lettore %d partito:\n", dl->id);
+    //fprintf(stdout, "Lettore %d partito:\n", dl->id);
 
     char *parola;
     int np = 0;
     //int conto = 0;
 
     do{
-        fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
+        //fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(dl->sem_data_items, __LINE__, __FILE__);
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(dl->mutex, QUI);
         parola = dl->bufflet[*(dl->index) % PC_buffer_len];
-       if(parola!=NULL) {conto = conta(parola);
-        printf("Parola : %s, Conto : %d\n", parola, conto); }
+        /*if(parola!=NULL) {conto = conta(parola);
+        printf("Parola : %s, Conto : %d\n", parola, conto); }*/
         *(dl->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(dl->mutex, QUI);
@@ -357,7 +356,7 @@ void *lettore_body(void *arg){
 
     fprintf(stdout, "LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
     pthread_exit(NULL);
-}*/
+}
 
 //Funzione capo lettore
 void *capo_lettore_body(void *arg){
@@ -372,7 +371,7 @@ void *capo_lettore_body(void *arg){
         xtermina("[PIPE] Errore apertura capolet.\n", __LINE__, __FILE__);
     } 
 
-    /*inizializzo i dati per i lettori
+    //inizializzo i dati per i lettori
     pthread_mutex_t mutexL = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tL[*(cl->numero_lettori)];
     datiLettori dl [*(cl->numero_lettori)];
@@ -387,7 +386,7 @@ void *capo_lettore_body(void *arg){
         dl[i].mutex = &mutexL;
         dl[i].id = i;
         xpthread_create(&tL[i], NULL, lettore_body, dl+i, __LINE__, __FILE__);
-    }*/
+    }
 
 
     //dati per leggere dalla pipe
@@ -427,7 +426,6 @@ void *capo_lettore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        //input_buffer[bytes_letti] = 0x00; 
         input_buffer[bytes_letti] = '\0';
 
         //tokenizzo la stringa
@@ -440,7 +438,7 @@ void *capo_lettore_body(void *arg){
             xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cl->bufflet[*(cl->index) % PC_buffer_len] = copia;
-                fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
+                //fprintf(stdout, "BUFFER LETTORE[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
                 *(cl->index) += 1;
             }
             *(cl->np) += 1;
@@ -457,21 +455,21 @@ void *capo_lettore_body(void *arg){
 
     //fprintf(stdout, "\n Prima di terminare i lettori l'indice è %d\n\n", *(cl->index)%PC_buffer_len);
     
-    /*termino i lettori aggiungendo null nel buffer
+    //termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
         cl->bufflet[*(cl->index) % PC_buffer_len] = NULL;
-        fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
+        //fprintf(stdout, "BUFFER LETTORE[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
         *(cl->index) += 1;
         xsem_post(cl->sem_data_items, __LINE__, __FILE__);
-    }*/
+    }
 
-    /*aspetto i thread lettori
+    //aspetto i thread lettori
     for (int i=0; i<*(cl->numero_lettori); i++){
         pthread_join(tL[i], NULL);
     }
     pthread_mutex_destroy(&mutexL);
-    */
+
     free(input_buffer);
     close(fd);
     pthread_exit(NULL);
