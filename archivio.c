@@ -1,97 +1,42 @@
 #include "xerrori.h"
 #include <search.h>
+
 #define QUI __LINE__,__FILE__
 
+#define FIFO_CAPOSC "caposc"
+#define FIFO_CAPOLET "capolet"
 #define PC_buffer_len 10
 #define Num_elem 1000000
+#define Max_sequence_length 2048
+
+
+// Testa della lista per la tabella hash 
 ENTRY *testa_lista_entry = NULL;
 
-//flista per le entry
-typedef struct {
-  int valore;    // numero di occorrenze della stringa 
-  ENTRY *next;  
-} coppia;
-//funzioni per hash table
 
-//creo un oggetto della hash table
-ENTRY *crea_entry(char *s, int n) {
-  ENTRY *e = malloc(sizeof(ENTRY));
-  if(e==NULL) xtermina("errore malloc entry 1", __LINE__, __FILE__);
-  e->key = strdup(s); // salva copia di s
-  e->data = malloc(sizeof(coppia));
-  if(e->key==NULL || e->data==NULL)
-    xtermina("errore malloc entry 2", __LINE__, __FILE__);
-  // inizializzo coppia
-  coppia *c = (coppia *) e->data; // cast obbligatorio
-  c->valore  = n;
-  c->next = NULL;
-  return e;
-}
+//funzioni sotto al main per i thread
+void *capo_scrittore_body(void *arg);
+void *capo_lettore_body(void *arg);
+void *scrittore_body(void *arg);
+void *lettore_body(void *arg);
 
+//funzioni sotto al main per la tabella hash
+ENTRY *crea_entry(char *s, int n);
+void distruggi_entry(ENTRY *e);
 
-// dealloca la memoria usata dalla ENTRY *e 
-void distruggi_entry(ENTRY *e)
-{
-  free(e->key); free(e->data); free(e);
-}
+//-----Struct per i dati dei thread-----//
 
-ENTRY *aggiungi (char *s){
-  ENTRY *e = crea_entry(s, 1);
-  ENTRY *r = hsearch(*e,FIND);
-  if(r==NULL) {
-    r = hsearch(*e,ENTER);
-    if(r==NULL) xtermina("errore o tabella piena\n", __LINE__, __FILE__);
-    coppia *c = (coppia *) e->data;
-    // inserisco in testa
-    c->next = testa_lista_entry;
-    testa_lista_entry = e;
-    printf(" parola : %s valore : %d\n", e->key, c->valore);
-    
-  } else {
-      //la stringa è gia' presente
-      assert(strcmp(e->key,r->key)==0);
-      coppia *d = (coppia *) r->data;
-      d->valore +=1;
-      printf(" parola : %s valore : %d\n", e->key, d->valore);
-      distruggi_entry(e);
-      
-  }
-  return testa_lista_entry;
-}
-
-int conta(char *s){
-  //cerco s nella tabella hash
-  ENTRY *e = crea_entry(s, 1);
-  ENTRY *r = hsearch(*e,FIND);
-  if(r==NULL) return 0;
-  assert(strcmp(e->key,r->key)==0);
-  coppia *c = (coppia *) r->data;
-  int conto = c->valore;
-  distruggi_entry(e);
-  return conto;
-}
-
-typedef struct {
-    int *ht;
-    //condion variabile
-    pthread_mutex_t *mutex;
-    pthread_cond_t *cond;
-    int *messi;
-} vettoreht;
-
-//struttura capo scrittore
+//Struct capo scrittore
 typedef struct{
     int *numero_scrittori;
     char **buffsc;
     int *index;
+    int *np;
     sem_t *sem_free_slots;
-    sem_t *sem_data_items;
-    int *ht;
-    //vettore 
-   
+    sem_t *sem_data_items; 
 } datiCapoScrittore;
 
-//struttura scrittore
+//Struct scrittore
 typedef struct{
     int id;
     char **buffsc;
@@ -99,21 +44,19 @@ typedef struct{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
-    int *ht;
-  
 } datiScrittori;
 
-//struttura capo lettore
+//Struct capo lettore
 typedef struct{
   int *numero_lettori;
   char **bufflet;
   int *index;
+  int *np;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
-
 } datiCapoLettore;
 
-//struttura lettore
+//Struct lettore
 typedef struct{
     int id;
     char **bufflet;
@@ -121,13 +64,102 @@ typedef struct{
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
-  
-
 } datiLettori;
 
+//-----Struct per la tabella hash-----//
+
+//Struct per la lista di entry
+typedef struct {
+  int valore;    // numero di occorrenze della stringa 
+  ENTRY *next;  
+} coppia;
 
 
-//Funzione scrittore
+//main
+int main (int argc, char *argv[]){
+    
+    if(argc<3){
+        fprintf(stderr, "Uso : %s <num_thread_scrittori> <num_thread_lettori> \n", argv[0]);
+        exit(1);
+    }
+
+    //leggo dalla line adi comando il numero di lettori e scrittori che si dovranno far partire
+    int w = atoi(argv[1]);
+    int r = atoi(argv[2]);
+
+    //creo i buffer per il capo lettore e per il capo scrittore con i rispettivi indici
+    char **buffsc = malloc(PC_buffer_len * sizeof(char *));
+    if(buffsc==NULL){
+        xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
+    }
+    char **bufflet = malloc(PC_buffer_len * sizeof(char *));
+    if(bufflet == NULL){
+        xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
+    }
+    int indexSC = 0;
+    int indexLET = 0;
+    int npsc = 0;
+    int nplet = 0;
+
+    //creo i semafori che utilizzano i capi con i relatvi thread per leggere e scrivere nei rispettivi buffer
+    //semafori per gli scrittori
+    sem_t sem_data_items_sc;
+    sem_t sem_free_slots_sc;
+    //semafori per i lettori
+    sem_t sem_data_items_let;
+    sem_t sem_free_slots_let;
+
+    xsem_init(&sem_data_items_sc, 0, 0, __LINE__, __FILE__ );
+    xsem_init(&sem_free_slots_sc, 0, PC_buffer_len, __LINE__, __FILE__);
+    xsem_init(&sem_data_items_let, 0, 0, __LINE__, __FILE__ );
+    xsem_init(&sem_free_slots_let, 0, PC_buffer_len, __LINE__, __FILE__);
+
+
+    //capo scrittore
+    pthread_t capo_scrittore;
+    datiCapoScrittore cs;
+    //inizializzo il capo scrittore
+    cs.numero_scrittori = &w;
+    cs.buffsc = buffsc; 
+    cs.index = &indexSC;
+    cs.np = &npsc;
+    cs.sem_free_slots = &sem_free_slots_sc; 
+    cs.sem_data_items = &sem_data_items_sc;
+
+
+    //capo lettore
+    pthread_t capo_lettore;
+    datiCapoLettore cl;
+    //inizializzo il capo lettore
+    cl.numero_lettori = &r;
+    cl.bufflet = bufflet; 
+    cl.index = &indexLET; 
+    cl.np = &nplet;
+    cl.sem_free_slots = &sem_free_slots_let;
+    cl.sem_data_items = &sem_data_items_let;
+
+    //creo i thread
+    xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
+    xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
+    
+    //attendo la terminazione dei thread
+    pthread_join(capo_scrittore, NULL);
+    pthread_join(capo_lettore, NULL);
+
+    for(int i= 0; i<npsc; i++){
+        free(buffsc[i]);
+    }
+    for(int i = 0; i<nplet; i++){
+        free(bufflet[i]);
+    }
+
+    free(buffsc);
+    free(bufflet);
+    return 0;
+}
+
+
+/*Funzione scrittore
 void *scrittore_body(void *arg){
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
@@ -143,18 +175,15 @@ void *scrittore_body(void *arg){
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(ds->mutex, QUI);
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
-        //parola = ds->buffsc[*(ds->index)];
         //fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
         *(ds->index) += 1;
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);
-          
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
-        np++;
+        np++; //incremento il numero di parole lette
 
-
-        /*aggiungo la parola nella tabella hash
+        aggiungo la parola nella tabella hash
         if(parola!=NULL) {
             xpthread_mutex_lock(ds->ht->mutex, QUI);
             while(ds->ht->messi > Num_elem){
@@ -164,29 +193,29 @@ void *scrittore_body(void *arg){
             testa_lista_entry = aggiungi(parola);
             ds->ht->messi++;
             xpthread_mutex_unlock(ds->ht->mutex, QUI);
-        }*/
+        }
       
-  
-
     }while(parola != NULL);
 
     fprintf(stdout, "SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, np);
     pthread_exit(NULL);
-}
+}*/
 
 //Funzione capo scrittore
 void *capo_scrittore_body(void *arg){
+    
     //recupero i dati
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
     fprintf(stdout, "CAPO SCRITTORE PARTITO\n");
+    
 
-    //inizializzo i dati per gli scrittori
+    /*inizializzo i dati per gli scrittori
+    int indexS = 0;
     pthread_mutex_t mutexS = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tS[*(cs->numero_scrittori)];
     datiScrittori ds [*(cs->numero_scrittori)];
-    int indexS = 0;
     
-
+    
     //creo i thread scrittori
     for(int i=0; i<*(cs->numero_scrittori); i++){
         ds[i].buffsc = cs->buffsc;
@@ -194,35 +223,34 @@ void *capo_scrittore_body(void *arg){
         ds[i].sem_free_slots = cs->sem_free_slots;
         ds[i].sem_data_items = cs->sem_data_items;
         ds[i].mutex = &mutexS;
-        ds[i].id = i;
-    
-        
+        ds[i].id = i;        
         xpthread_create(&tS[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
-    }
+    } */
 
-    //apro la pipe caposc in lettura
-    int fd = open("caposc", O_RDONLY);
+    //apro la pipe CAPOSC da cui leggerò le sequenze di byte
+    int fd = open(FIFO_CAPOSC, O_RDONLY);
     if(fd==-1){
         xtermina("[PIPE] Errore apertura caposc.\n", __LINE__, __FILE__);
-    } 
+    }
 
     //dati per leggere dalla pipe
-    int size = 10;
-    char *input_buffer = malloc(size * sizeof(char));
+    int size = 2 ;
+
+    char *input_buffer = malloc(size);
     if(input_buffer==NULL){
         xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
     }
-    size_t bytes_letti;
-
-    //scrivo buffer
-    int np = 0;
+   
     while(true){
+
         //leggo la dimensione della sequenza di bytes
-        bytes_letti = read(fd, &size, sizeof(int));
-        if(bytes_letti==0){
+        ssize_t bytes_letti = read(fd, &size, sizeof(int));
+
+        if(bytes_letti == 0){
             printf("FIFO chiusa in lettura\n");
             break;
         }
+
         if(bytes_letti != sizeof(int)){
             perror("Errore nella lettura della lunghezza della sequenza di byte");
             break;
@@ -245,8 +273,8 @@ void *capo_scrittore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        input_buffer[bytes_letti] = 0x00; 
-        input_buffer[bytes_letti+1] = '\0';
+        //input_buffer[bytes_letti] = 0x00; 
+        input_buffer[bytes_letti] = '\0';
 
         //tokenizzo la stringa
         char *copia;
@@ -258,46 +286,46 @@ void *capo_scrittore_body(void *arg){
             xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cs->buffsc[*(cs->index) % PC_buffer_len] = copia;
-                //cs->buffsc[*(cs->index)] = copia;
                 fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
                 *(cs->index) += 1;
             }
+            *(cs->np) += 1;
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cs->sem_data_items, __LINE__, __FILE__);
-
-            np++;
+        
             token = strtok(NULL, ".,:; \n\r\t");
         }
-
+        input_buffer = realloc(input_buffer, 2);
     }
 
-    fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", np);
+    fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", *(cs->np));
 
-
-    fprintf(stdout, "\n Prima di terminare gli scrittori lindice è %d\n\n", *(cs->index)%PC_buffer_len);
+    //fprintf(stdout, "\n Prima di terminare gli scrittori l'indice è %d\n\n", *(cs->index)%PC_buffer_len);
+    
     //termino gli scrittori aggiungendo null nel buffer
-    for(int i=0; i<*(cs->numero_scrittori); i++){
+    
+    /*for(int i=0; i<*(cs->numero_scrittori); i++){
         xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
         cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
-        //cs->buffsc[*(cs->index)] = NULL;
-        fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
+        //fprintf(stdout, "BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
         *(cs->index) += 1;
         xsem_post(cs->sem_data_items, __LINE__, __FILE__);
-    }
+    }*/
 
-    //aspetto i thread scrittori
+    /*aspetto i thread scrittori
     for (int i=0; i<*(cs->numero_scrittori); i++){
         pthread_join(tS[i], NULL);
     }
-    pthread_mutex_destroy(&mutexS);
+    pthread_mutex_destroy(&mutexS);*/
 
+    free(input_buffer);
     close(fd);
     pthread_exit(NULL);
 
 }
 
 
-//Funzione lettore
+/*Funzione lettore
 void *lettore_body(void *arg){
     //recupero i dati
     datiLettori *dl = (datiLettori *) arg;
@@ -305,7 +333,7 @@ void *lettore_body(void *arg){
 
     char *parola;
     int np = 0;
-    int conto = 0;
+    //int conto = 0;
 
     do{
         fprintf(stdout,"[INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
@@ -314,7 +342,7 @@ void *lettore_body(void *arg){
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(dl->mutex, QUI);
         parola = dl->bufflet[*(dl->index) % PC_buffer_len];
-        if(parola!=NULL) {conto = conta(parola);
+       if(parola!=NULL) {conto = conta(parola);
         printf("Parola : %s, Conto : %d\n", parola, conto); }
         *(dl->index) += 1;
         //rilascio la mutex
@@ -329,15 +357,22 @@ void *lettore_body(void *arg){
 
     fprintf(stdout, "LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
     pthread_exit(NULL);
-}
+}*/
 
 //Funzione capo lettore
 void *capo_lettore_body(void *arg){
+
     //recupero i dati
     datiCapoLettore *cl = (datiCapoLettore *) arg;
     fprintf(stdout, "CAPO LETTORE PARTITO\n");
 
-    //inizializzo i dati per i lettori
+    //apro la pipe CAPOLET in lettura
+    int fd = open(FIFO_CAPOLET, O_RDONLY);
+    if(fd==-1){
+        xtermina("[PIPE] Errore apertura capolet.\n", __LINE__, __FILE__);
+    } 
+
+    /*inizializzo i dati per i lettori
     pthread_mutex_t mutexL = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tL[*(cl->numero_lettori)];
     datiLettori dl [*(cl->numero_lettori)];
@@ -351,26 +386,18 @@ void *capo_lettore_body(void *arg){
         dl[i].sem_data_items = cl->sem_data_items;
         dl[i].mutex = &mutexL;
         dl[i].id = i;
-
         xpthread_create(&tL[i], NULL, lettore_body, dl+i, __LINE__, __FILE__);
-    }
+    }*/
 
-    //apro la pipe capolet in lettura
-    int fd = open("capolet", O_RDONLY);
-    if(fd==-1){
-        xtermina("[PIPE] Errore apertura capolet.\n", __LINE__, __FILE__);
-    } 
 
     //dati per leggere dalla pipe
-    int size = 10;
-    char *input_buffer = malloc(size * sizeof(char));
+    int size = 2;
+    char *input_buffer = malloc(size);
     if(input_buffer==NULL){
         xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
     }
     size_t bytes_letti;
 
-    //scrivo nel buffer
-    int np = 0;
     while(true){
         //leggo la dimensione della sequenza di bytes
         bytes_letti = read(fd, &size, sizeof(int));
@@ -400,8 +427,8 @@ void *capo_lettore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        input_buffer[bytes_letti] = 0x00; 
-        input_buffer[bytes_letti+1] = '\0';
+        //input_buffer[bytes_letti] = 0x00; 
+        input_buffer[bytes_letti] = '\0';
 
         //tokenizzo la stringa
         char *copia;
@@ -416,130 +443,93 @@ void *capo_lettore_body(void *arg){
                 fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
                 *(cl->index) += 1;
             }
+            *(cl->np) += 1;
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cl->sem_data_items, __LINE__, __FILE__);
 
-            np++;
             token = strtok(NULL, ".,:; \n\r\t");
         }
-
+        input_buffer = realloc(input_buffer, 2);
     }
    
-    fprintf(stdout, "CAPO LETTORE HA SCRITTO %d PAROLE\n", np);
+    fprintf(stdout, "CAPO LETTORE HA SCRITTO %d PAROLE\n", *(cl->np));
     
 
-    fprintf(stdout, "\n Prima di terminare i lettori lindice è %d\n\n", *(cl->index)%PC_buffer_len);
-    //termino i lettori aggiungendo null nel buffer
+    //fprintf(stdout, "\n Prima di terminare i lettori l'indice è %d\n\n", *(cl->index)%PC_buffer_len);
+    
+    /*termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
         cl->bufflet[*(cl->index) % PC_buffer_len] = NULL;
         fprintf(stdout, "BUFFER[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
         *(cl->index) += 1;
         xsem_post(cl->sem_data_items, __LINE__, __FILE__);
-    }
+    }*/
 
-    //aspetto i thread lettori
+    /*aspetto i thread lettori
     for (int i=0; i<*(cl->numero_lettori); i++){
         pthread_join(tL[i], NULL);
     }
     pthread_mutex_destroy(&mutexL);
-
+    */
+    free(input_buffer);
     close(fd);
     pthread_exit(NULL);
 
 }
 
 
-//main
-int main (int argc, char *argv[]){
-    
-    if(argc<3){
-        fprintf(stderr, "Uso : %s <num_thread_scrittori> <num_thread_lettori> <L o S>\n", argv[0]);
-        exit(1);
-    }
-
-    int w = atoi(argv[1]);
-    int r = atoi(argv[2]);
-    char *SL = argv[3];
-    int ht = hcreate(Num_elem);
-    if(ht==0 ) xtermina("Errore creazione HT", __LINE__, __FILE__);
-    /*vettoreht tabella = malloc(sizeof(vettoreht));
-    tabella.ht = &ht;
-    condition variables
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-    tabella.mutex = &mutex;
-    tabella.cond = &cond;
-    int messi = 0;
-    tabella.messi = messi;
-    */
-
-  
-    //scrittori
-    if(strcmp(SL, "l")){
-        //buffer per gli scrittori
-        int indexSC = 0;
-        char **buffsc = malloc(PC_buffer_len * sizeof(char));
-        if(buffsc==NULL){
-            xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
-        }
-        //semafori per gli scrittori
-        sem_t sem_data_items_sc;
-        sem_t sem_free_slots_sc;
-        xsem_init(&sem_data_items_sc, 0, 0, __LINE__, __FILE__ );
-        xsem_init(&sem_free_slots_sc, 0, PC_buffer_len, __LINE__, __FILE__);
-
-        
-        //capo scrittore
-        pthread_t capo_scrittore;
-        datiCapoScrittore cs;
-        cs.numero_scrittori = &w;
-        cs.buffsc = buffsc;
-        cs.index = &indexSC;
-        cs.sem_free_slots = &sem_free_slots_sc;
-        cs.sem_data_items = &sem_data_items_sc;
-       
-        
-        //creo il thread capo scrittore
-        xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
-        //aspetto il capo scrittore
-        pthread_join(capo_scrittore, NULL);
-
-        free(buffsc);
-    }
-
-    if(strcmp(SL,"s")){
-        //buffer per i lettori
-        int indexLET = 0;
-        char **bufflet = malloc(PC_buffer_len * sizeof(char));
-        if(bufflet == NULL){
-            xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
-        }
-
-        //semafori per i lettori
-        sem_t sem_data_items_let;
-        sem_t sem_free_slots_let;
-        xsem_init(&sem_data_items_let, 0, 0, __LINE__, __FILE__ );
-        xsem_init(&sem_free_slots_let, 0, PC_buffer_len, __LINE__, __FILE__);
-    
-
-        //capo lettore
-        pthread_t capo_lettore;
-        datiCapoLettore cl;
-        cl.numero_lettori = &r;
-        cl.bufflet = bufflet;
-        cl.index = &indexLET;
-        cl.sem_free_slots = &sem_free_slots_let;
-        cl.sem_data_items = &sem_data_items_let;
-     
-        //creo il thread capo lettore
-        xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
-        //aspetto il capo lettore
-        pthread_join(capo_lettore, NULL);
-
-        free(bufflet);
-    }
-
-
-    return 0;
+ENTRY *crea_entry(char *s, int n){
+  ENTRY *e = malloc(sizeof(ENTRY));
+  if(e==NULL) xtermina("errore malloc entry", __LINE__, __FILE__);
+  e->key = strdup(s); // salva copia di s
+  e->data = malloc(sizeof(coppia));
+  if(e->key==NULL || e->data==NULL)
+    xtermina("errore malloc entry", __LINE__, __FILE__);
+  // inizializzo coppia
+  coppia *c = (coppia *) e->data; // cast obbligatorio
+  c->valore  = n;
+  c->next = NULL;
+  return e;
 }
+
+void distruggi_entry(ENTRY *e){
+  free(e->key); free(e->data); free(e);
+}
+
+/*void aggiungi (char *s){
+  ENTRY *e = crea_entry(s, 1);
+  ENTRY *r = hsearch(*e,FIND);
+  if(r==NULL) {
+    r = hsearch(*e,ENTER);
+    if(r==NULL) xtermina("errore o tabella piena\n", __LINE__, __FILE__);
+    coppia *c = (coppia *) e->data;
+    // inserisco in testa
+    c->next = testa_lista_entry;
+    testa_lista_entry = e;
+    printf(" parola : %s valore : %d\n", e->key, c->valore);
+  }else {
+    //incremento il valore della stringa già presente
+    assert(strcmp(e->key,r->key)==0);
+    coppia *c = (coppia *) r->data;
+    c->valore +=1;
+    distruggi_entry(e);
+  }
+}*/
+
+/*int conta(char *s) {
+  int tmp;
+  // printf("Thread lettore %d conta %s\n", gettid(), s);
+  ENTRY *e = crea_entry(s, 1);
+  ENTRY *r = hsearch(*e, FIND);
+  if (r == NULL) { // Se non c'è la stringa nella ht restituisco 0
+    printf("%s non trovata\n", s);
+    tmp = 0;
+  } else {
+    printf("%s -> %d\n", s, *((int *)r->data));
+    tmp = *((int *)r->data);
+  }
+  // Distruggo la entry 'creata' perché non va allocata
+  distruggi_entry(e);
+  return tmp;
+}*/
