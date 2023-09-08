@@ -23,6 +23,10 @@ void *lettore_body(void *arg);
 //funzioni sotto al main per la tabella hash
 ENTRY *crea_entry(char *s, int n);
 void distruggi_entry(ENTRY *e);
+void aggiungi (char *s);
+int conta(char *s);
+void stampa_entry(ENTRY *e);
+void stampa_lista_entry(ENTRY *lis);
 
 //-----Struct per i dati dei thread-----//
 
@@ -530,4 +534,22 @@ int conta(char *s) {
   // Distruggo la entry 'creata' perché non va allocata
   distruggi_entry(e);
   return tmp;
+}
+
+
+void stampa_entry(ENTRY *e) {
+  coppia *c = (coppia *)e->data;
+  printf("%s ----------- %d\n", e->key, c->valore);
+} 
+
+void stampa_lista_entry(ENTRY *lis) {
+  if (lis == NULL) {
+    printf("Lista vuota\n");
+  }
+  // In input do il puntatore al primo elemento che chiamo lis
+  while (lis != NULL) {
+    coppia *c = (coppia *)lis->data;
+    stampa_entry(lis);
+    lis = c->next;
+  }
 }
