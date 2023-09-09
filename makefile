@@ -20,7 +20,7 @@ main_linked : main_linked.c
 provaScrittura: provaScrittura.c xerrori.c
 	$(CC) $(CFLAGS) -o provaScrittura provaScrittura.c xerrori.c
 
-archivio: archivio.c xerrori.c hashtable.c
+archivio: archivio.c xerrori.c xerrori.c hashtable.c
 	$(CC) $(CFLAGS) -o archivio archivio.c xerrori.c hashtable.c
 
 

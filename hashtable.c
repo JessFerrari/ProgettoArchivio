@@ -1,5 +1,7 @@
 #include "hashtable.h"
-
+ENTRY *testa_lista_entry = NULL;
+atomic_int tot_stringhe_inHT = 0;
+#define QUI __LINE__,__FILE__
 // Possibile soluzione al problema lettori/scrittori
 // Questa soluzione è unfair per gli scrittori che
 // potrebbero essere messi in attesa indefinita
@@ -46,3 +48,99 @@ void write_unlock(rwHT *z) {
   pthread_mutex_unlock(&z->mutexHT);
 }
 
+//-----------------Funzioni per la tabella hash-------------------
+
+ENTRY *crea_entry(char *s, int n) {
+  ENTRY *e = malloc(sizeof(ENTRY));
+  if (e == NULL)
+    xtermina("[ARCHIVIO] Errore 1 malloc crea_entry", QUI);
+  e->key = strdup(s); // Salva copia di s
+  e->data = malloc(sizeof(coppia));
+  if (e->key == NULL || e->data == NULL)
+    xtermina("[ARCHIVIO] Errore 2 malloc crea_entry", QUI);
+  // Inizializzo coppia
+  coppia *c = (coppia *)e->data; // Cast obbligatorio
+  c->valore = n;
+  c->next = NULL;
+  return e;
+}
+
+void distruggi_entry(ENTRY *e){
+  free(e->key); free(e->data); free(e);
+}
+
+/*void distruggi_hash(ENTRY *h){
+  if(h!=NULL) {
+    coppia *c = h->data;
+    distruggi_hash(c->next);
+    distruggi_entry(h);
+  }
+}*/
+
+void distruggi_hash() {
+  ENTRY *h = testa_lista_entry;
+  while (h != NULL) {
+    coppia *c = h->data;
+    distruggi_entry(h);
+    h = c->next;
+  }
+}
+
+void aggiungi(char *s) {
+  ENTRY *e = crea_entry(s, 1);
+  ENTRY *r = hsearch(*e, FIND);
+  if (r == NULL) {          // Se la stringa è nuova nella ht
+    r = hsearch(*e, ENTER); // Inserisco la entry creata nella ht
+    if (r == NULL)
+      xtermina("[AGGIUNGI] Errore o tabella piena", QUI);
+    // La metto anche in cima alla lista delle entry inserite
+    coppia *c = (coppia *)e->data;
+    // Salvo la vecchia lista dentro c->next
+    c->next = testa_lista_entry;
+    // e diventa la testa della lista
+    testa_lista_entry = e;
+    // Incremento anche il numero di stringhe totali distinte inserite nella ht
+    tot_stringhe_inHT += 1;
+  } else {
+    // Altrimenti la stringa è già presente incremento solo il valore
+    assert(strcmp(e->key, r->key) == 0);
+    coppia *c = (coppia *)r->data;
+    c->valore += 1;
+    distruggi_entry(e); // Questa non la devo memorizzare
+  }
+}
+
+int conta(char *s) {
+  int tmp;
+  // printf("Thread lettore %d conta %s\n", gettid(), s);
+  ENTRY *e = crea_entry(s, 1);
+  ENTRY *r = hsearch(*e, FIND);
+  if (r == NULL) { // Se non c'è la stringa nella ht restituisco 0
+    printf("%s non trovata\n", s);
+    tmp = 0;
+  } else {
+    printf("%s -> %d\n", s, *((int *)r->data));
+    tmp = *((int *)r->data);
+  }
+  // Distruggo la entry 'creata' perché non va allocata
+  distruggi_entry(e);
+  return tmp;
+}
+
+void stampa_entry(ENTRY *e) {
+  coppia *c = (coppia *)e->data;
+  printf("%s ----------- %d\n", e->key, c->valore);
+} 
+
+void stampa_lista_entry() {
+  ENTRY *lis = testa_lista_entry;
+  if (lis == NULL) {
+    printf("Lista vuota\n");
+  }
+  // In input do il puntatore al primo elemento che chiamo lis
+  while (lis != NULL) {
+    coppia *c = (coppia *)lis->data;
+    stampa_entry(lis);
+    lis = c->next;
+  }
+}
