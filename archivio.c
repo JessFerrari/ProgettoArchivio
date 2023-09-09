@@ -1,5 +1,5 @@
-#include "xerrori.h"
-#include <search.h>
+#include "hashtable.h"
+#include <stdatomic.h>
 
 #define QUI __LINE__,__FILE__
 
@@ -10,9 +10,9 @@
 #define Max_sequence_length 2048
 
 
-// Testa della lista per la tabella hash 
 ENTRY *testa_lista_entry = NULL;
-
+rwHT struct_rwHT;
+atomic_int tot_stringhe_inHT = 0;
 
 //funzioni sotto al main per i thread
 void *capo_scrittore_body(void *arg);
@@ -20,13 +20,19 @@ void *capo_lettore_body(void *arg);
 void *scrittore_body(void *arg);
 void *lettore_body(void *arg);
 
-//funzioni sotto al main per la tabella hash
+//funzioni per la creazione e distruzione della hash table
 ENTRY *crea_entry(char *s, int n);
 void distruggi_entry(ENTRY *e);
+void distruggi_hash(ENTRY *h);
+
+//funzioni usate dai thread scrittori e dai thread lettori
 void aggiungi (char *s);
 int conta(char *s);
+
+//funzioni per la stampa 
 void stampa_entry(ENTRY *e);
 void stampa_lista_entry(ENTRY *lis);
+
 
 //-----Struct per i dati dei thread-----//
 
@@ -45,6 +51,7 @@ typedef struct{
     int id;
     char **buffsc;
     int *index;
+    int *np;
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
@@ -56,6 +63,7 @@ typedef struct{
   char **bufflet;
   int *index;
   int *np;
+  FILE *filelog;
   sem_t *sem_free_slots;
   sem_t *sem_data_items;
 } datiCapoLettore;
@@ -65,18 +73,12 @@ typedef struct{
     int id;
     char **bufflet;
     int *index;
+    int *np;
+    FILE *filelog;
     pthread_mutex_t *mutex;
     sem_t *sem_free_slots;
     sem_t *sem_data_items;
 } datiLettori;
-
-//-----Struct per la tabella hash-----//
-
-//Struct per la lista di entry
-typedef struct {
-  int valore;    // numero di occorrenze della stringa 
-  ENTRY *next;  
-} coppia;
 
 
 //main
@@ -87,9 +89,27 @@ int main (int argc, char *argv[]){
         exit(1);
     }
 
-    //leggo dalla line adi comando il numero di lettori e scrittori che si dovranno far partire
+    //creo la tabella hash
+    int ht = hcreate(Num_elem);
+    if(ht == 0){
+        xtermina("[MALLOC] Errore allocazione hashtable", __LINE__, __FILE__);
+    }
+    //assegno i valori per la struct rwHT
+    pthread_mutex_t mutexHT = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t condHT = PTHREAD_COND_INITIALIZER;
+    struct_rwHT.mutexHT = mutexHT;
+    struct_rwHT.condHT = condHT;
+    struct_rwHT.writersHT = false;
+    struct_rwHT.readersHT = 0;
+    
+
+    //leggo dalla linea di comando il numero di lettori e scrittori ricevuti dal server (minimo 3)
     int w = atoi(argv[1]);
     int r = atoi(argv[2]);
+    assert(w>=3 && r>=3);
+
+    //apro il file di log dove tengo le occorrenze lette
+    FILE *fp = xfopen("lettori.log", "w", QUI);
 
     //creo i buffer per il capo lettore e per il capo scrittore con i rispettivi indici
     char **buffsc = malloc(PC_buffer_len * sizeof(char *));
@@ -141,6 +161,7 @@ int main (int argc, char *argv[]){
     cl.np = &nplet;
     cl.sem_free_slots = &sem_free_slots_let;
     cl.sem_data_items = &sem_data_items_let;
+    cl.filelog = fp;
 
     //creo i thread
     xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
@@ -168,7 +189,7 @@ void *scrittore_body(void *arg){
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
     //fprintf(stdout, "Scrittore %d partito:\n", ds->id);
-
+    rwHT *rw = &struct_rwHT;
     char *parola;
     int np = 0;
 
@@ -181,23 +202,20 @@ void *scrittore_body(void *arg){
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
         //fprintf(stdout, "SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
         *(ds->index) += 1;
+
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);
+        np++; //incremento il numero di parole lette
+        //aggiungo la parola nella tabella hash
+        if(parola != NULL){
+            write_lock(rw);
+            printf("Thread scrittore %d aggiunge %s\n", ds->id, parola);
+            aggiungi(parola);
+            write_unlock(rw);
+        }
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
-        np++; //incremento il numero di parole lette
 
-        //aggiungo la parola nella tabella hash
-        /*if(parola!=NULL) {
-            xpthread_mutex_lock(ds->ht->mutex, QUI);
-            while(ds->ht->messi > Num_elem){
-                fprintf(stdout, "Il thread %d è in attesa perchè la tabella ha %d elementi = %d \n", ds->id, ds->ht->messi, Num_elem);
-                xpthread_cond_wait(ds->ht->cond, ds->ht->mutex, QUI);
-            }
-            testa_lista_entry = aggiungi(parola);
-            ds->ht->messi++;
-            xpthread_mutex_unlock(ds->ht->mutex, QUI);
-        }*/
       
     }while(parola != NULL);
 
@@ -215,6 +233,7 @@ void *capo_scrittore_body(void *arg){
 
     //inizializzo i dati per gli scrittori
     int indexS = 0;
+  
     pthread_mutex_t mutexS = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tS[*(cs->numero_scrittori)];
     datiScrittori ds [*(cs->numero_scrittori)];
@@ -227,7 +246,8 @@ void *capo_scrittore_body(void *arg){
         ds[i].sem_free_slots = cs->sem_free_slots;
         ds[i].sem_data_items = cs->sem_data_items;
         ds[i].mutex = &mutexS;
-        ds[i].id = i;        
+        ds[i].id = i;  
+        ds[i].np = 0;      
         xpthread_create(&tS[i], NULL, scrittore_body, ds+i, __LINE__, __FILE__);
     } 
 
@@ -251,7 +271,7 @@ void *capo_scrittore_body(void *arg){
         ssize_t bytes_letti = read(fd, &size, sizeof(int));
 
         if(bytes_letti == 0){
-            printf("FIFO chiusa in lettura\n");
+            printf("FIFO caposc chiusa in lettura\n");
             break;
         }
 
@@ -269,7 +289,7 @@ void *capo_scrittore_body(void *arg){
         //leggo la sequenza di n byte
         bytes_letti = read(fd, input_buffer, size);
         if(bytes_letti==0){
-            printf("FIFO chiusa in scrittura\n");
+            printf("FIFO caposc chiusa in scrittura\n");
             break;
         }
         if(bytes_letti != size){
@@ -277,7 +297,7 @@ void *capo_scrittore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa 
-        input_buffer[bytes_letti] = '\0';
+        input_buffer[bytes_letti] = 0 ;
 
         //tokenizzo la stringa
         char *copia;
@@ -333,9 +353,9 @@ void *lettore_body(void *arg){
     //recupero i dati
     datiLettori *dl = (datiLettori *) arg;
     //fprintf(stdout, "Lettore %d partito:\n", dl->id);
-
-    char *parola;
     int np = 0;
+    rwHT *rw = &struct_rwHT;
+    char *parola;
     //int conto = 0;
 
     do{
@@ -348,17 +368,30 @@ void *lettore_body(void *arg){
         /*if(parola!=NULL) {conto = conta(parola);
         printf("Parola : %s, Conto : %d\n", parola, conto); }*/
         *(dl->index) += 1;
+
         //rilascio la mutex
         xpthread_mutex_unlock(dl->mutex, QUI);
+        np ++;
+        
+        //devo poi contare le occorenze della parola nella hash table
+        if(parola!=NULL){
+            read_lock(rw);
+            int occorenze = conta(parola);
+            fprintf(dl->filelog, "Parola : %s, Occorrenze : %d\n", parola, occorenze);
+            read_unlock(rw);
+
+        }
+
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(dl->sem_free_slots, __LINE__, __FILE__);
-        np++;
 
-        //devo poi aggiungere la parola nella tabella hash
 
     }while(parola != NULL);
 
     fprintf(stdout, "LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
+    
+
+    
     pthread_exit(NULL);
 }
 
@@ -380,7 +413,6 @@ void *capo_lettore_body(void *arg){
     pthread_t tL[*(cl->numero_lettori)];
     datiLettori dl [*(cl->numero_lettori)];
     int indexL = 0;
-
     //creo i thread lettori
     for(int i=0; i<*(cl->numero_lettori); i++){
         dl[i].bufflet = cl->bufflet;
@@ -389,6 +421,8 @@ void *capo_lettore_body(void *arg){
         dl[i].sem_data_items = cl->sem_data_items;
         dl[i].mutex = &mutexL;
         dl[i].id = i;
+        dl[i].np = 0;
+        dl[i].filelog = cl->filelog;
         xpthread_create(&tL[i], NULL, lettore_body, dl+i, __LINE__, __FILE__);
     }
 
@@ -405,7 +439,7 @@ void *capo_lettore_body(void *arg){
         //leggo la dimensione della sequenza di bytes
         bytes_letti = read(fd, &size, sizeof(int));
         if(bytes_letti==0){
-            printf("FIFO chiusa in lettura\n");
+            printf("FIFO capolet chiusa in lettura\n");
             break;
         }
         if(bytes_letti != sizeof(int)){
@@ -422,7 +456,7 @@ void *capo_lettore_body(void *arg){
         //leggo la sequenza di n byte
         bytes_letti = read(fd, input_buffer, size);
         if(bytes_letti==0){
-            printf("FIFO chiusa in scrittura\n");
+            printf("FIFO capolet chiusa in scrittura\n");
             break;
         }
         if(bytes_letti != size){
@@ -430,7 +464,7 @@ void *capo_lettore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        input_buffer[bytes_letti] = '\0';
+        input_buffer[bytes_letti] = 0 ;
 
         //tokenizzo la stringa
         char *copia;
@@ -481,16 +515,19 @@ void *capo_lettore_body(void *arg){
 }
 
 
-ENTRY *crea_entry(char *s, int n){
+//-----------------Funzioni per la tabella hash-------------------
+
+ENTRY *crea_entry(char *s, int n) {
   ENTRY *e = malloc(sizeof(ENTRY));
-  if(e==NULL) xtermina("errore malloc entry", __LINE__, __FILE__);
-  e->key = strdup(s); // salva copia di s
+  if (e == NULL)
+    xtermina("[ARCHIVIO] Errore 1 malloc crea_entry", QUI);
+  e->key = strdup(s); // Salva copia di s
   e->data = malloc(sizeof(coppia));
-  if(e->key==NULL || e->data==NULL)
-    xtermina("errore malloc entry", __LINE__, __FILE__);
-  // inizializzo coppia
-  coppia *c = (coppia *) e->data; // cast obbligatorio
-  c->valore  = n;
+  if (e->key == NULL || e->data == NULL)
+    xtermina("[ARCHIVIO] Errore 2 malloc crea_entry", QUI);
+  // Inizializzo coppia
+  coppia *c = (coppia *)e->data; // Cast obbligatorio
+  c->valore = n;
   c->next = NULL;
   return e;
 }
@@ -499,23 +536,35 @@ void distruggi_entry(ENTRY *e){
   free(e->key); free(e->data); free(e);
 }
 
-void aggiungi (char *s){
+void distruggi_hash(ENTRY *h){
+  if(h!=NULL) {
+    coppia *c = h->data;
+    distruggi_hash(c->next);
+    distruggi_entry(h);
+  }
+}
+
+void aggiungi(char *s) {
   ENTRY *e = crea_entry(s, 1);
-  ENTRY *r = hsearch(*e,FIND);
-  if(r==NULL) {
-    r = hsearch(*e,ENTER);
-    if(r==NULL) xtermina("errore o tabella piena\n", __LINE__, __FILE__);
-    coppia *c = (coppia *) e->data;
-    // inserisco in testa
+  ENTRY *r = hsearch(*e, FIND);
+  if (r == NULL) {          // Se la stringa è nuova nella ht
+    r = hsearch(*e, ENTER); // Inserisco la entry creata nella ht
+    if (r == NULL)
+      xtermina("[AGGIUNGI] Errore o tabella piena", QUI);
+    // La metto anche in cima alla lista delle entry inserite
+    coppia *c = (coppia *)e->data;
+    // Salvo la vecchia lista dentro c->next
     c->next = testa_lista_entry;
+    // e diventa la testa della lista
     testa_lista_entry = e;
-    printf(" parola : %s valore : %d\n", e->key, c->valore);
-  }else {
-    //incremento il valore della stringa già presente
-    assert(strcmp(e->key,r->key)==0);
-    coppia *c = (coppia *) r->data;
-    c->valore +=1;
-    distruggi_entry(e);
+    // Incremento anche il numero di stringhe totali distinte inserite nella ht
+    tot_stringhe_inHT += 1;
+  } else {
+    // Altrimenti la stringa è già presente incremento solo il valore
+    assert(strcmp(e->key, r->key) == 0);
+    coppia *c = (coppia *)r->data;
+    c->valore += 1;
+    distruggi_entry(e); // Questa non la devo memorizzare
   }
 }
 
@@ -525,7 +574,7 @@ int conta(char *s) {
   ENTRY *e = crea_entry(s, 1);
   ENTRY *r = hsearch(*e, FIND);
   if (r == NULL) { // Se non c'è la stringa nella ht restituisco 0
-    printf("%s non trovata\n", s);
+    printf("%s -> error 404: not found in ht\n", s);
     tmp = 0;
   } else {
     printf("%s -> %d\n", s, *((int *)r->data));
@@ -535,7 +584,6 @@ int conta(char *s) {
   distruggi_entry(e);
   return tmp;
 }
-
 
 void stampa_entry(ENTRY *e) {
   coppia *c = (coppia *)e->data;
