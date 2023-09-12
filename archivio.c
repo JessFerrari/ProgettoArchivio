@@ -294,7 +294,7 @@ void *capo_scrittore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa 
-        input_buffer[bytes_letti] = 0 ;
+        input_buffer[bytes_letti] = '\0' ;
 
         //tokenizzo la stringa
         char *copia;
@@ -461,7 +461,7 @@ void *capo_lettore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        input_buffer[bytes_letti] = 0 ;
+        input_buffer[bytes_letti] = '\0' ;
 
         //tokenizzo la stringa
         char *copia;
