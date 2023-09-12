@@ -95,7 +95,7 @@ int main (int argc, char *argv[]){
     assert(w>=3 && r>=3);
 
     //apro il file di log dove tengo le occorrenze lette
-    FILE *fp = xfopen("lettori.log", "w", QUI);
+    FILE *lettoriLog = xfopen("lettori.log", "w", QUI);
 
     //creo i buffer per il capo lettore e per il capo scrittore con i rispettivi indici
     char **buffsc = malloc(PC_buffer_len * sizeof(char *));
@@ -147,7 +147,7 @@ int main (int argc, char *argv[]){
     cl.np = &nplet;
     cl.sem_free_slots = &sem_free_slots_let;
     cl.sem_data_items = &sem_data_items_let;
-    cl.filelog = fp;
+    cl.filelog = lettoriLog;
 
     //creo i thread
     xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
@@ -167,6 +167,14 @@ int main (int argc, char *argv[]){
     }
 
     distruggi_hash();
+    fclose(lettoriLog);
+    xpthread_mutex_destroy(&mutexHT, QUI);
+    xpthread_cond_destroy(&condHT, QUI);
+    xsem_destroy(&sem_data_items_sc, QUI);
+    xsem_destroy(&sem_free_slots_sc, QUI);
+    xsem_destroy(&sem_data_items_let, QUI);
+    xsem_destroy(&sem_free_slots_let, QUI);
+
     free(buffsc);
     free(bufflet);
     return 0;
@@ -249,7 +257,7 @@ void *capo_scrittore_body(void *arg){
     //dati per leggere dalla pipe
     int size = 2 ;
 
-    char *input_buffer = malloc(size);
+    char *input_buffer = malloc(size*sizeof(char));
     if(input_buffer==NULL){
         xtermina("[MALLOC] Errore allocazione memoria", __LINE__, __FILE__);
     }
@@ -307,7 +315,7 @@ void *capo_scrittore_body(void *arg){
         
             token = strtok(NULL, ".,:; \n\r\t");
         }
-        input_buffer = realloc(input_buffer, 2);
+        input_buffer = realloc(input_buffer, 2*sizeof(char));
     }
 
     fprintf(stdout, "CAPO SCRITTORE HA SCRITTO %d PAROLE\n", *(cs->np));
@@ -328,10 +336,10 @@ void *capo_scrittore_body(void *arg){
     for (int i=0; i<*(cs->numero_scrittori); i++){
         pthread_join(tS[i], NULL);
     }
-    pthread_mutex_destroy(&mutexS);
+    xpthread_mutex_destroy(&mutexS, QUI);
 
     free(input_buffer);
-    close(fd);
+    xclose(fd, QUI);
     pthread_exit(NULL);
 
 }
@@ -495,10 +503,10 @@ void *capo_lettore_body(void *arg){
     for (int i=0; i<*(cl->numero_lettori); i++){
         pthread_join(tL[i], NULL);
     }
-    pthread_mutex_destroy(&mutexL);
+    xpthread_mutex_destroy(&mutexL, QUI);
 
     free(input_buffer);
-    close(fd);
+    xclose(fd, QUI);
     pthread_exit(NULL);
 
 }
