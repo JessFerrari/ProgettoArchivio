@@ -210,7 +210,8 @@ if __name__ == "__main__":
     parser.add_argument('thread_count', type=int, help='Numero massimo di thread')
     parser.add_argument('-r', '--readers', type=int, default=3, help='Numero di lettori, escluso il capo')
     parser.add_argument('-w','--writers', type=int, default=3, help='Numero di scrittori, escluso il capo')
+    parser.add_argument('-v', '--valgrind', action='store_true', help='Esegue il programma archivio con valgrind')
 
     args = parser.parse_args()
 
-    mainServer(args.thread_count, args.readers, args.writers)
+    mainServer(args.thread_count, args.readers, args.writers, args.valgrind)

@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 
     //leggo una linea e la mando con una connessione
     while((read = getline(&line, &len, f)) != -1) {
-        printf("CLIENT1: %s\n", line );
+        printf("[CLIENT1] ho letto dal file: %s\n", line );
         //se la linea è vuota viene saltata
         if(line[0] == '\0'){
             fprintf(stderr, "Linea vuota\n");
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
         }
         //a questo punto la linea è correta e quindi instauro una connessione
         //creo il socket
-        int client_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+        int client_socket = socket(AF_INET, SOCK_STREAM, 0);
         if(client_socket == -1){
             xtermina("[CLIENT1] Errore nella creazione del socket\n", __LINE__, __FILE__);
         }
