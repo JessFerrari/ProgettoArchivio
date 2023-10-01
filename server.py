@@ -29,19 +29,24 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
         # variabile per la lunghezza della stringa
         string_len = 0
         while True:
+            print(f"ricevuta connessione di tipo A: {client_address}")
             # Ricevo la lunghezza della stringa
             bytes_string_len = recv_all(client_socket, 4)
+            print(f"{client_address} ricevuta la lunghezza della stringa {bytes_string_len}")
             if bytes_string_len == 0:
                 break
             string_len = struct.unpack('!i', bytes_string_len[:4])[0]
+            print(f"{client_address} unpacked lunghezza della stringa {string_len}")
             if not string_len:
                 break
             # Ricevo la stringa in bytes
             bytes_string = recv_all(client_socket, string_len)
+            print(f"{client_address} ricevuta la stringa {bytes_string}")
             if not bytes_string:
                 break
             # decodifico la stringa
             string = bytes_string.decode('utf-8')
+            print(f"{client_address} decodificata la stringa {string}")
             # mantengo la lunghezza in bytes
             #num_bytes_to_send = struct.pack('!i', string_len)
             print(f"[SERVER] len -> {string_len}, string -> {string}")
@@ -49,6 +54,7 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
             os.write(capolet, bytes_string_len)
             os.write(capolet, bytes_string)
             num_bytes_to_send += (len(bytes_string_len) + len(bytes_string))
+            print(f"[SERVER] num_bytes_to_send -> {num_bytes_to_send}")
         #salvare su server log il numero di byte mandati
         logging.info("connessione di tipo A: scritti %d bytes in capolet", num_bytes_to_send)
         #chiudo la connessione 
@@ -62,22 +68,27 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
         # variabile per il  numero sìdi sequenze ricevute
         tot_seq = 0
         while True:
+            print(f"ricevuta connessione di tipo B: {client_address}")
             # Ricevo la lunghezza della stringa
             bytes_string_len = recv_all(client_socket, 4)
+            print(f"{client_address} ricevuta la lunghezza della stringa {bytes_string_len}")
             # Se ricevo 4 bytes di 0 allora ho finito di mandare sequenze
             # mando il numero sequenze ricevute
             if bytes_string_len == b'\x00\x00\x00\x00':
                client_socket.sendall(struct.pack('!i', tot_seq))
                break
             string_len = struct.unpack('!i', bytes_string_len[:4])[0]
+            print(f"{client_address} unpacked lunghezza della stringa {string_len}")
             if not string_len:
                break
             # Ricevo la stringa in bytes
             bytes_string = recv_all(client_socket, string_len)
+            print(f"{client_address} ricevuta la stringa {bytes_string}")
             if not bytes_string:
                break
             # decodifico la stringa
             string = bytes_string.decode('utf-8')
+            print(f"{client_address} decodificata la stringa {string}")
 
             print(f"[SERVER] len -> {bytes_string_len}, string -> {string}")
             # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
@@ -146,13 +157,13 @@ def archivio(readers, writers):
     global archivio_subprocess, server_socket
     # Eseguo il programma archivio.c
     archivio_subprocess = subprocess.Popen(["./archivio", str(readers), str(writers)])
-    print(f"[SERVER] Eseguo il programma archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori")
+    print(f"[SERVER] Eseguo il programma archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori\n")
 
 def archivio_valgrind(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C passando anche valgrind
     archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio.out", str(readers), str(writers)])
-    print(f"[SERVER] Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind")
+    print(f"[SERVER] Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind\n")
 
 
 def mainServer(thread_count, readers, writers, valgrind):
@@ -163,35 +174,46 @@ def mainServer(thread_count, readers, writers, valgrind):
     host = "127.0.0.1"
     port = 50531
     # inizializzo il socket del server
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((host, port))
-    server_socket.listen(5)
-    print("[SERVER] in ascolto sulla porta %d" % port)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #crea un socket
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #permette di riutilizzare il socket
+    server_socket.bind((host, port)) #associa l'indirizzo alla porta
+    server_socket.listen(5) #attiva il listening con 5 connessioni
+    print("[SERVER] in ascolto sulla porta %d\n" % port)
 
     #creazione di un threadpool
     executor = ThreadPoolExecutor(max_workers=thread_count)
-    print("[SERVER] threadpool creato")
+    print("[SERVER] threadpool creato\n")
 
     #inzializzazione delle pipes
     # controllo se esistono di già se no le creo
     if not os.path.exists("capolet"):
-        os.mkfifo("capolet", 0o0666) 
-        print("[SERVER] capolet creato")
+        try:
+            os.mkfifo("capolet", 0o666) 
+            print("[SERVER] capolet creato\n")
+        except FileExistsError:
+            print("[SERVER] capolet gia esistente")
     if not os.path.exists("caposc"):
-        os.mkfifo("caposc", 0o0666)
-        print("[SERVER] caposc creato")  
-    #se sono già presenti le apro e basta
-    capolet = os.open("capolet", os.O_WRONLY)
-    caposc = os.open("caposc", os.O_RDONLY)
-    print("[SERVER] capolet e caposc aperti")
-
+        try:
+            os.mkfifo("caposc", 0o666)
+            print("[SERVER] caposc creato\n")  
+        except FileExistsError:
+            print("[SERVER] caposc gia esistente")
     
+
     #inizializzazione del processo archivio. Se valgrind = 1 esegue il programma archivio con valgrind
     if valgrind:
         archivio_valgrind(readers, writers)
     else:
         archivio(readers, writers)
+    
+    #apro le pipes
+    try:
+        capolet = open("capolet", 'w')
+        caposc = open("caposc", 'w')
+        print("\n[SERVER] capolet e caposc aperti\n")
+    except Exception as e:
+        print(f"Error: {e}")
+
 
     #configurazione del file di log
     logging.basicConfig(filename='server.log', level=logging.INFO, format='%(asctime)s - %(message)s')
