@@ -7,7 +7,7 @@
 // Costanti
 #define QUI __LINE__, __FILE__
 #define HOST "127.0.0.1"
-#define PORT 50531 
+#define PORT 55531 
 #define Max_sequence_length 2048
 
 /*Funzione mostrata a lezione.
@@ -49,26 +49,32 @@ int main(int argc, char *argv[]) {
 
     //apro il file in lettura
     FILE *f = xfopen(argv[1], "r", __LINE__, __FILE__);
+    if(f == NULL){
+        xtermina("[CLIENT1] ErroreInThe apertura del file\n", __LINE__, __FILE__);
+    }
 
     //leggo una linea e la mando con una connessione
     while((read = getline(&line, &len, f)) != -1) {
         printf("[CLIENT1] ho letto dal file: %s\n", line );
+
         //se la linea è vuota viene saltata
-        if(line[0] == '\0'){
-            fprintf(stderr, "Linea vuota\n");
-            continue;
-        }
+        if (strlen(linea) == 1 && linea[0] == '\n') {
+        printf("[CLIENT1] Linea vuota, la skippo\n");
+        continue;
+    }
         //se la dimensione è >2048 allora è troppo grande e viene saltata
         if(strlen(line) > 2048){
-            fprintf(stderr, "Linea troppo lunga\n");
+            fprintf(stderr, "[CLIENT1] Linea troppo lunga\n");
             continue;
         }
+
         //a questo punto la linea è correta e quindi instauro una connessione
         //creo il socket
         int client_socket = socket(AF_INET, SOCK_STREAM, 0);
         if(client_socket == -1){
             xtermina("[CLIENT1] Errore nella creazione del socket\n", __LINE__, __FILE__);
         }
+        
         //connetto il client al server
         struct sockaddr_in server_addr;
         server_addr.sin_family = AF_INET;

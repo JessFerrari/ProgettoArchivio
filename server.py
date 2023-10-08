@@ -2,7 +2,7 @@
 import socket, sys, argparse, subprocess, time, signal, os, errno, struct, logging
 from concurrent.futures import ThreadPoolExecutor
 
-# inizializzo la socket del server 
+#inizializzo la socket del server 
 server_socket = None
 #variabile che conterrà il processo archivio
 archivio_subprocess = None
@@ -21,40 +21,48 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
     """
     # devo vedere se mi arriva un client di tipo 1 o di tipo 2
     client_type = client_socket.recv(1).decode('utf-8')
+    #print(f"[SERVER] {client_address} : client di tipo {client_type}\n")
     # se la connessione è di tipo 1 devo instaurare una connessione per ogni linea letta dal file
     if client_type == "1":
-        print(f"[SERVER] {client_address} : client di tipo 1 - connessione di tipo A")
+        print(f"[SERVER] {client_address} : client di tipo 1 - connessione di tipo A\n")
+        
         # mantengo il numero di byte che il server deve mandare nella pipe capolet
         num_bytes_to_send = 0
         # variabile per la lunghezza della stringa
-        string_len = 0
+        len_seq = 0
+        
         while True:
-            print(f"ricevuta connessione di tipo A: {client_address}")
-            # Ricevo la lunghezza della stringa
-            bytes_string_len = recv_all(client_socket, 4)
-            print(f"{client_address} ricevuta la lunghezza della stringa {bytes_string_len}")
-            if bytes_string_len == 0:
+            print(f"[SERVER] ricevuta connessione di tipo A: {client_address}\n")
+            
+            # Ricevo la lunghezza della stringa in bytes
+            len_seq_in_bytes = recv_all(client_socket, 4)
+            #se la stringa è vuota esco dal while
+            if len_seq_in_bytes == 0:
                 break
-            string_len = struct.unpack('!i', bytes_string_len[:4])[0]
-            print(f"{client_address} unpacked lunghezza della stringa {string_len}")
-            if not string_len:
+            len_seq = struct.unpack('!i', len_seq_in_bytes[:4])[0]
+            print(f"[SERVER] {client_address} lunghezza della stringa da leggere: {len_seq}\n")
+            if not len_seq:
                 break
+            
             # Ricevo la stringa in bytes
-            bytes_string = recv_all(client_socket, string_len)
-            print(f"{client_address} ricevuta la stringa {bytes_string}")
-            if not bytes_string:
+            seq_in_bytes = recv_all(client_socket, len_seq)
+            print(f"{client_address} ricevuta la stringa in bytes: {seq_in_bytes}")
+            if not seq_in_bytes:
                 break
             # decodifico la stringa
-            string = bytes_string.decode('utf-8')
-            print(f"{client_address} decodificata la stringa {string}")
-            # mantengo la lunghezza in bytes
+            seq = seq_in_bytes.decode('utf-8')
+            print(f"[SERVER] {client_address} decodificata la stringa: {seq}")
+    
+
             #num_bytes_to_send = struct.pack('!i', string_len)
-            print(f"[SERVER] len -> {string_len}, string -> {string}")
+            print(f"[SERVER] len -> {len_seq}, string -> {seq}\n")
+            
             # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
-            os.write(capolet, bytes_string_len)
-            os.write(capolet, bytes_string)
-            num_bytes_to_send += (len(bytes_string_len) + len(bytes_string))
-            print(f"[SERVER] num_bytes_to_send -> {num_bytes_to_send}")
+            os.write(capolet, len_seq)
+            os.write(capolet, seq)
+            
+            num_bytes_to_send += (len(len_seq_in_bytes) + len(seq_in_bytes))
+            print(f"[SERVER] Sulla pipe capolet sono stati inviati {num_bytes_to_send} bytes in totale\n")
         #salvare su server log il numero di byte mandati
         logging.info("connessione di tipo A: scritti %d bytes in capolet", num_bytes_to_send)
         #chiudo la connessione 
@@ -70,33 +78,39 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
         while True:
             print(f"ricevuta connessione di tipo B: {client_address}")
             # Ricevo la lunghezza della stringa
-            bytes_string_len = recv_all(client_socket, 4)
-            print(f"{client_address} ricevuta la lunghezza della stringa {bytes_string_len}")
+            len_seq_in_bytes = recv_all(client_socket, 4)
+            print(f"{client_address} ricevuta la lunghezza della stringa : {len_seq_in_bytes}")
             # Se ricevo 4 bytes di 0 allora ho finito di mandare sequenze
             # mando il numero sequenze ricevute
-            if bytes_string_len == b'\x00\x00\x00\x00':
+            if len_seq_in_bytes == b'\x00\x00\x00\x00':
                client_socket.sendall(struct.pack('!i', tot_seq))
                break
-            string_len = struct.unpack('!i', bytes_string_len[:4])[0]
-            print(f"{client_address} unpacked lunghezza della stringa {string_len}")
-            if not string_len:
+            len_seq = struct.unpack('!i', len_seq_in_bytes[:4])[0]
+            print(f"{client_address} unpacked lunghezza della stringa {len_seq}")
+            if not len_seq:
                break
+       
             # Ricevo la stringa in bytes
-            bytes_string = recv_all(client_socket, string_len)
-            print(f"{client_address} ricevuta la stringa {bytes_string}")
-            if not bytes_string:
+            seq_in_bytes = recv_all(client_socket, len_seq)
+            print(f"{client_address} ricevuta la stringa {seq_in_bytes}")
+            if not seq_in_bytes:
                break
-            # decodifico la stringa
-            string = bytes_string.decode('utf-8')
-            print(f"{client_address} decodificata la stringa {string}")
 
-            print(f"[SERVER] len -> {bytes_string_len}, string -> {string}")
+            # decodifico la stringa
+            seq = seq_in_bytes.decode('utf-8')
+
+            print(f"{client_address} decodificata la stringa {seq}")
+
+            print(f"[SERVER] len -> {len_seq_in_bytes}, string -> {seq}")
             # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
-            os.write(caposc, bytes_string_len)
-            os.write(caposc, bytes_string)
+            os.write(caposc, len_seq_in_bytes)
+            os.write(caposc, seq_in_bytes)
             tot_seq += 1
-            num_bytes_to_send += len(bytes_string_len) + len(bytes_string)
-        
+            num_bytes_to_send += len(len_seq_in_bytes) + len(seq_in_bytes)
+            print("qUI CI ARRVIVO")
+        print("qui non ci arrivo")
+        #stampo il numero totale di byte mandati
+        print(f"\n [SERVER] connessione di tipo 2 : num_bytes_to_send -> {num_bytes_to_send}")
         #salvare su server log
         logging.info("connessione di tipo B: scritti %d bytes in caposc", num_bytes_to_send)
         # resetto il numero di byte mandati a caposc
@@ -169,10 +183,11 @@ def archivio_valgrind(readers, writers):
 def mainServer(thread_count, readers, writers, valgrind):
     """
     Funzione che gestisce il server.
-    """
+    """ 
+
     global server_socket, archivo_subprocess
     host = "127.0.0.1"
-    port = 50531
+    port = 55531
     # inizializzo il socket del server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #crea un socket
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #permette di riutilizzare il socket
