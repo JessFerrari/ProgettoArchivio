@@ -43,6 +43,7 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
             print(f"[SERVER] {client_address} lunghezza della stringa da leggere: {len_seq}\n")
             if not len_seq:
                 break
+            len_seq_in_bytes = struct.pack('<i', len_seq)
             
             # Ricevo la stringa in bytes
             seq_in_bytes = recv_all(client_socket, len_seq)
@@ -52,17 +53,19 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
             # decodifico la stringa
             seq = seq_in_bytes.decode('utf-8')
             print(f"[SERVER] {client_address} decodificata la stringa: {seq}")
-    
+            seq_in_bytes = struct.pack('<i', len(seq))
 
-            #num_bytes_to_send = struct.pack('!i', string_len)
-            print(f"[SERVER] len -> {len_seq}, string -> {seq}\n")
-            
-            # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
-            os.write(capolet, len_seq)
-            os.write(capolet, seq)
+            print(f"[SERVER] len_seq -> {len_seq}, seq -> {seq}")
+            print(f"[SERVER] len_seq_in_bytes -> {len_seq_in_bytes}, seq_in_bytes -> {seq_in_bytes}\n")
             
             num_bytes_to_send += (len(len_seq_in_bytes) + len(seq_in_bytes))
+
+            # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
+            os.write(capolet, len_seq_in_bytes)
+            os.write(capolet, seq_in_bytes)
+           
             print(f"[SERVER] Sulla pipe capolet sono stati inviati {num_bytes_to_send} bytes in totale\n")
+            
         #salvare su server log il numero di byte mandati
         logging.info("connessione di tipo A: scritti %d bytes in capolet", num_bytes_to_send)
         #chiudo la connessione 
@@ -203,13 +206,14 @@ def mainServer(thread_count, readers, writers, valgrind):
     # controllo se esistono di già se no le creo
     if not os.path.exists("capolet"):
         try:
-            os.mkfifo("capolet", 0o666) 
+            os.mkfifo("capolet", 0o0666) 
             print("[SERVER] capolet creato\n")
         except FileExistsError:
             print("[SERVER] capolet gia esistente")
+
     if not os.path.exists("caposc"):
         try:
-            os.mkfifo("caposc", 0o666)
+            os.mkfifo("caposc", 0o0666)
             print("[SERVER] caposc creato\n")  
         except FileExistsError:
             print("[SERVER] caposc gia esistente")
@@ -223,9 +227,9 @@ def mainServer(thread_count, readers, writers, valgrind):
     
     #apro le pipes
     try:
-        capolet = open("capolet", 'w')
-        caposc = open("caposc", 'w')
-        print("\n[SERVER] capolet e caposc aperti\n")
+        capolet = os.open("capolet", os.O_WRONLY)
+        caposc = os.open("caposc", os.O_WRONLY)
+        print("\n[SERVER] capolet e caposc aperti in SCRITTURA\n")
     except Exception as e:
         print(f"Error: {e}")
 
@@ -238,7 +242,7 @@ def mainServer(thread_count, readers, writers, valgrind):
 
     while True:
         client_socket, client_address = server_socket.accept()
-        executor.submit(handle_client_connection, client_socket, client_address, capolet, caposc)
+        executor.submit(handle_client_connection, client_socket, client_address, caposc, capolet)
         print("[SERVER] accettato nuovo client")
 
 if __name__ == "__main__":
