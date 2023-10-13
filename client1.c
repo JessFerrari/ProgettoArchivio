@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     //apro il file in lettura
     FILE *f = xfopen(argv[1], "r", __LINE__, __FILE__);
     if(f == NULL){
-        xtermina("[CLIENT1] ErroreInThe apertura del file\n", __LINE__, __FILE__);
+        xtermina("[CLIENT1] Errore nella apertura del file\n", __LINE__, __FILE__);
     }
 
     //leggo una linea e la mando con una connessione
@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
         printf("[CLIENT1] ho letto dal file: %s\n", line );
 
         //se la linea è vuota viene saltata
-        if (strlen(linea) == 1 && linea[0] == '\n') {
+        if (strlen(line) == 1 && line[0] == '\n') {
         printf("[CLIENT1] Linea vuota, la skippo\n");
         continue;
     }
@@ -87,6 +87,7 @@ int main(int argc, char *argv[]) {
             xclose(client_socket, __LINE__, __FILE__);
             exit(1);
         }
+        printf("[CLIENT1] Connessione effettuata \n");
 
         //identifioco il tipo di connessione 
         char *connection_type = "1";
@@ -101,11 +102,13 @@ int main(int argc, char *argv[]) {
         if(e != sizeof(int)){
             xtermina("[CLIENT1] Errore nella scrittura della lunghezza della linea\n", __LINE__, __FILE__);
         }
+        printf("[CLIENT1] Lunghezza della linea: %ld, inviata al server\n", strlen(line));
 
         //invio la sequenza di caratteri
         if(send(client_socket, line, read, 0) < 0){
             xtermina("[CLIENT1] Errore nella scrittura della sequenza di caratteri\n", __LINE__, __FILE__);
         }
+        printf("[CLIENT1] Sequenza di caratteri inviata al server\n");
 
         xclose(client_socket, __LINE__, __FILE__);
 

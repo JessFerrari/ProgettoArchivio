@@ -43,7 +43,7 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
             print(f"[SERVER] {client_address} lunghezza della stringa da leggere: {len_seq}\n")
             if not len_seq:
                 break
-            len_seq_in_bytes = struct.pack('<i', len_seq)
+            len_seq_in_bytes = struct.pack('i', len_seq)
             
             # Ricevo la stringa in bytes
             seq_in_bytes = recv_all(client_socket, len_seq)
@@ -53,7 +53,7 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
             # decodifico la stringa
             seq = seq_in_bytes.decode('utf-8')
             print(f"[SERVER] {client_address} decodificata la stringa: {seq}")
-            seq_in_bytes = struct.pack('<i', len(seq))
+            #seq_in_bytes = struct.pack('<i', len(seq))
 
             print(f"[SERVER] len_seq -> {len_seq}, seq -> {seq}")
             print(f"[SERVER] len_seq_in_bytes -> {len_seq_in_bytes}, seq_in_bytes -> {seq_in_bytes}\n")
@@ -218,7 +218,10 @@ def mainServer(thread_count, readers, writers, valgrind):
         except FileExistsError:
             print("[SERVER] caposc gia esistente")
     
-
+    if(readers<3):
+        readers = 3
+    if(writers<3):
+        writers = 3
     #inizializzazione del processo archivio. Se valgrind = 1 esegue il programma archivio con valgrind
     if valgrind:
         archivio_valgrind(readers, writers)
