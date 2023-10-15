@@ -67,55 +67,54 @@ def handle_client_connection(client_socket, client_address, caposc, capolet):
             print(f"[SERVER] Sulla pipe capolet sono stati inviati {num_bytes_to_send} bytes in totale\n")
             
         #salvare su server log il numero di byte mandati
-        logging.info("connessione di tipo A: scritti %d bytes in capolet", num_bytes_to_send)
+        logging.info("[SERVER] connessione di tipo A: scritti %d bytes in capolet\n", num_bytes_to_send)
         #chiudo la connessione 
         client_socket.close()
     #client di tipo 2
     elif client_type == "2":
         # instaura una connessione per ogni file che riceve dalla linea di comando
-        print(f"[SERVER] {client_address} : client di tipo 2 - connessione di tipo B")
+        print(f"[SERVER] : {client_address} : client di tipo 2 - connessione di tipo B\n")
         # mantengo il numero totale di byte che il server deve mandare nella pipe caposc
         num_bytes_to_send = 0
         # variabile per il  numero sìdi sequenze ricevute
         tot_seq = 0
         while True:
-            print(f"ricevuta connessione di tipo B: {client_address}")
+            print(f"[SERVER] : ricevuta connessione di tipo B: {client_address}\n")
             # Ricevo la lunghezza della stringa
             len_seq_in_bytes = recv_all(client_socket, 4)
-            print(f"{client_address} ricevuta la lunghezza della stringa : {len_seq_in_bytes}")
+            print(f"{client_address} ricevuta la lunghezza della stringa : {len_seq_in_bytes}\n")
             # Se ricevo 4 bytes di 0 allora ho finito di mandare sequenze
             # mando il numero sequenze ricevute
             if len_seq_in_bytes == b'\x00\x00\x00\x00':
                client_socket.sendall(struct.pack('!i', tot_seq))
                break
             len_seq = struct.unpack('!i', len_seq_in_bytes[:4])[0]
-            print(f"{client_address} unpacked lunghezza della stringa {len_seq}")
+            print(f"{client_address} unpacked lunghezza della stringa {len_seq}\n")
             if not len_seq:
                break
        
             # Ricevo la stringa in bytes
             seq_in_bytes = recv_all(client_socket, len_seq)
-            print(f"{client_address} ricevuta la stringa {seq_in_bytes}")
+            print(f"{client_address} ricevuta la stringa {seq_in_bytes}\n")
             if not seq_in_bytes:
                break
 
             # decodifico la stringa
             seq = seq_in_bytes.decode('utf-8')
 
-            print(f"{client_address} decodificata la stringa {seq}")
+            print(f"{client_address} decodificata la stringa {seq}\n")
 
-            print(f"[SERVER] len -> {len_seq_in_bytes}, string -> {seq}")
+            print(f"[SERVER] len -> {len_seq_in_bytes}, string -> {seq}\n")
             # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
             os.write(caposc, len_seq_in_bytes)
             os.write(caposc, seq_in_bytes)
             tot_seq += 1
             num_bytes_to_send += len(len_seq_in_bytes) + len(seq_in_bytes)
-            print("qUI CI ARRVIVO")
-        print("qui non ci arrivo")
+            
         #stampo il numero totale di byte mandati
-        print(f"\n [SERVER] connessione di tipo 2 : num_bytes_to_send -> {num_bytes_to_send}")
+        print(f"\n [SERVER] nella connessione {client_address} sono satti mandati {num_bytes_to_send} bytes\n")
         #salvare su server log
-        logging.info("connessione di tipo B: scritti %d bytes in caposc", num_bytes_to_send)
+        logging.info("connessione di tipo B: scritti %d bytes in caposc\n", num_bytes_to_send)
         # resetto il numero di byte mandati a caposc
         num_bytes_to_send = 0
         # chiudo la connessione

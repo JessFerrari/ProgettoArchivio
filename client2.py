@@ -14,22 +14,26 @@ def recv_all(conn,n):
             return 0
         chunks += chunk
         bytes_recd = bytes_recd + len(chunk)
-    return chunks 
+    return chunks      
 
-def client2(file) : 
+def client2(file_path) : 
     #viene aperto il file da cui si vuole leggere
-    with open(file, 'r') as f:
+    with open(file_path, 'rb') as file:
         #viene creato un socket TCP
-        client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         #viene assegnato un indirizzo ip e un numero di porta
-        server_address = ('127.0.0.1', 50531)
-
+        server_address = ('localhost', 55531)
         #connessione
-        client_sock.connect(server_address)
+        client_socket.connect(server_address)
         #viene identificato il client inviando 2
-        client_sock.sendall(("2").encode())
+        client_socket.sendall(("2").encode())
+
+
         #vengono lette tutte le linee del file
-        lines = f.readlines()
+        lines = file.readlines()
+        #variabile per mantenere la lunghezza della sequenza
+        length = 0
+
         #vengono inviate le linee lette al server
         for line in lines :
             #vengono rimossi gli spazi bianchi
@@ -38,20 +42,22 @@ def client2(file) :
                 print("[Client 2] linea troppo lunga")
                 continue
             elif line : 
-                client_sock.sendall(struct.pack('!i', len(line)) + line.encode())
+                client_socket.sendall(struct.pack('!i', len(line)) )
+                client_socket.sendall(line.encode())
             else:
                 print("[Client 2] linea vuota")
                 continue
 
             #viene inviata una sequenza lunga 0 per indicare che non ci sono altre sequenze da inviare
-            client_sock.sendall(b'\x00\x00\x00\x00')
+            client_socket.sendall(b'\x00\x00\x00\x00')
 
             #viene ricevuto dal server il numero di sequenze inviate
-            num_seq = struct.unpack('!i', recv_all(client_sock, 4))[0]
-            print("[Client 2] invio", num_seq, "sequenze")
+            length_byte = client_socket.recv(4)
+            num_seq = struct.unpack('!i', length_byte[:4])[0]
+            print(f"[CLIENT2] Totale sequenze ricevute dal server -> {num_seq}")
             
             #si chiude la connessione
-            client_sock.close()
+            client_socket.close()
         
 if __name__ == "__main__":
     import sys
