@@ -24,14 +24,13 @@ Progetto finale del corso di Laboratorio 2
 
 
 
--> Per far partire il server usare il comando
+-> Per far partire il server usare il comando  
 $ ./server.py #numThread -r numReaders -w #numWriters -v
 
--> Per far partire i client usare i comandi
-$ ./client2 <file> <file>      # scrive dati su archivio
-$ ./client1 <file>             # interroga archivio
+-> Per far partire i client usare i comandi    
+$ ./client2 file file        # scrive dati su archivio  
+$ ./client1 file               # interroga archivio  
 
--> Per terminare il server correttamente usare il comando
+-> Per terminare il server correttamente usare il comando  
 
-$ pkill -INT -f server.py       # invia SIGINT a server.py
-                                # che a sua volta termina archivio
+$ pkill -INT -f server.py         # invia SIGINT a server.py che a sua volta termina archivio
