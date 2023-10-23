@@ -9,6 +9,7 @@
 #define Num_elem 1000000
 #define Max_sequence_length 2048
 
+//-----Struct per la tabella hash-----//
 rwHT struct_rwHT;
 
 
@@ -80,6 +81,7 @@ int main (int argc, char *argv[]){
     if(ht == 0){
         xtermina("[MALLOC] Errore allocazione hashtable\n", __LINE__, __FILE__);
     }
+
     //assegno i valori per la struct rwHT
     pthread_mutex_t mutexHT = PTHREAD_MUTEX_INITIALIZER;
     pthread_cond_t condHT = PTHREAD_COND_INITIALIZER;
@@ -167,6 +169,7 @@ int main (int argc, char *argv[]){
     }
 
     distruggi_hash();
+
     fclose(lettoriLog);
     xpthread_mutex_destroy(&mutexHT, QUI);
     xpthread_cond_destroy(&condHT, QUI);
@@ -251,8 +254,9 @@ void *capo_scrittore_body(void *arg){
     //apro la pipe CAPOSC da cui leggerò le sequenze di byte
     int fd = open(FIFO_CAPOSC, O_RDONLY);
     if(fd==-1){
-        xtermina("[ARCHIVIO PIPE CAPOSC] Errore apertura caposc.\n", __LINE__, __FILE__);
+        xtermina("[ARCHIVIO]  Errore apertura FIFO caposc.\n", __LINE__, __FILE__);
     }
+    printf("[ARCHIVIO PIPE CAPOSC] FIFO caposc aperta in lettura\n");
 
     //dati per leggere dalla pipe
     int size = 2 ;
@@ -278,18 +282,19 @@ void *capo_scrittore_body(void *arg){
         }
 
         //realloco il buffer con la dimensione giusta
-        input_buffer = realloc(input_buffer, size * sizeof(char));
+        input_buffer = realloc(input_buffer, (size+1) * sizeof(char));
         if(input_buffer==NULL){
             xtermina("[ARCHIVIO] Errore allocazione memoria\n", __LINE__, __FILE__);
         }
 
         //leggo la sequenza di n byte
-        bytes_letti = read(fd, input_buffer, size);
+        bytes_letti = read(fd, input_buffer, size * sizeof(char));
         if(bytes_letti==0){
             printf("[ARCHIVIO] FIFO caposc chiusa in scrittura\n");
             break;
         }
-        if(bytes_letti != size){
+        
+        if(bytes_letti != size * sizeof(char)){
             perror("[ARCHIVIO CAPOSC BYTES LETTI]Errore nella lettura della sequenza di byte\n");
         }
 
@@ -405,6 +410,7 @@ void *capo_lettore_body(void *arg){
     if(fd==-1){
         xtermina("[ARCHIVIO] Errore apertura capolet.\n", __LINE__, __FILE__);
     } 
+    printf("[ARCHIVIO] FIFO capolet aperto in lettura\n");
 
     //inizializzo i dati per i lettori
     pthread_mutex_t mutexL = PTHREAD_MUTEX_INITIALIZER;
@@ -448,15 +454,14 @@ void *capo_lettore_body(void *arg){
         }
 
         //realloco il buffer con la dimensione giusta
-        input_buffer = realloc(input_buffer, size * sizeof(char));
+        input_buffer = realloc(input_buffer, (size+1) * sizeof(char));
         if(input_buffer==NULL){
             xtermina("[ARCHIVIO REALLOC] Errore allocazione memoria\n", __LINE__, __FILE__);
         }
 
         //leggo la sequenza di n byte
-        bytes_letti = read(fd, input_buffer, size);
-        printf("[ARCHIVIO CAPOLET] ho letto la sequenza di byte dalla FIFO capolet : %s\n", input_buffer);
-
+        bytes_letti = read(fd, input_buffer, size);   
+        
         if(bytes_letti==0){
             printf("[ARCHIVIO] FIFO capolet chiusa in scrittura\n");
             break;
@@ -467,6 +472,8 @@ void *capo_lettore_body(void *arg){
 
         //aggiungo 0 alla fine della stringa
         input_buffer[bytes_letti] = '\0' ;
+        printf("[ARCHIVIO CAPOLET] ho letto la sequenza di byte dalla FIFO capolet : %s\n", input_buffer);
+
 
         //tokenizzo la stringa
         char *copia;
@@ -515,6 +522,3 @@ void *capo_lettore_body(void *arg){
     pthread_exit(NULL);
 
 }
-
-
-

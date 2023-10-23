@@ -6,7 +6,7 @@ LDLIBS=-lm -lrt -pthread
 
 
 # definizione degli eseguibili
-EXECS=main main_linked  provaScrittura  archivio client1
+EXECS=main main_linked  provaScrittura  archivio client1 archivioprova
 
 # se si scrive solo make di default compila main.c
 all: $(EXECS)
@@ -25,6 +25,9 @@ archivio: archivio.c xerrori.c xerrori.c hashtable.c
 
 client1: client1.c xerrori.c
 	$(CC) $(CFLAGS) -o client1 client1.c xerrori.c
+
+archivioprova: archivioprova.c xerrori.c
+	$(CC) $(CFLAGS) -o archivioprova archivioprova.c xerrori.c
 
 # esegu la cancellazione dei file oggetto e degli eseguibili
 clean: 

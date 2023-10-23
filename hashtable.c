@@ -2,25 +2,26 @@
 ENTRY *testa_lista_entry = NULL;
 atomic_int tot_stringhe_inHT = 0;
 #define QUI __LINE__,__FILE__
-// Possibile soluzione al problema lettori/scrittori
-// Questa soluzione è unfair per gli scrittori che
-// potrebbero essere messi in attesa indefinita
-// se continuano ad arrivare lettori
 
+
+
+// ---- soluzone per il problema lettori/scrittori ----
+// ------------ unfair per gli scrittori --------------
 
 void read_lock(rwHT *z) {
   pthread_mutex_lock(&z->mutexHT); 
   // tutti sono magari svegli ma solo il più veloce lockerà la mutex
-  while (z->writersHT == true) 
+  while (z->writersHT == true) {
   // chi va ad accedere in lettura rimane bloccato finché c'è qualcuno che sta accedendo in scrittura
     pthread_cond_wait(&z->condHT, &z->mutexHT); // attende fine scrittura
+  }
   z->readersHT++;
   pthread_mutex_unlock(&z->mutexHT);
 }
 
 void read_unlock(rwHT *z) { // quando un thread ha finito l'accesso in lettura
   assert(z->readersHT > 0);
-  pthread_mutex_lock(&z->mutexHT);
+  pthread_mutex_lock (&z->mutexHT);
   z->readersHT--; // cambio di stato
   if (z->readersHT == 0)
     pthread_cond_signal(&z->condHT); // da segnalare ad un solo writer che magari
@@ -66,33 +67,27 @@ ENTRY *crea_entry(char *s, int n) {
 }
 
 void distruggi_entry(ENTRY *e){
-  free(e->key); free(e->data); free(e);
+  free(e->key); 
+  free(e->data); 
+  free(e);
 }
 
-/*void distruggi_hash(ENTRY *h){
-  if(h!=NULL) {
-    coppia *c = h->data;
-    distruggi_hash(c->next);
-    distruggi_entry(h);
-  }
-}*/
-
 void distruggi_hash() {
-  ENTRY *h = testa_lista_entry;
-  while (h != NULL) {
-    coppia *c = h->data;
+  while (testa_lista_entry != NULL) {
+    ENTRY *h = testa_lista_entry;
+    testa_lista_entry = ((coppia *)testa_lista_entry->data)->next;
     distruggi_entry(h);
-    h = c->next;
   }
 }
 
 void aggiungi(char *s) {
   ENTRY *e = crea_entry(s, 1);
   ENTRY *r = hsearch(*e, FIND);
-  if (r == NULL) {          // Se la stringa è nuova nella ht
+  if (r == NULL) { //La stringa non è stata trovata all'intero nella tabella hash e quindi la si deve inserire
     r = hsearch(*e, ENTER); // Inserisco la entry creata nella ht
     if (r == NULL)
       xtermina("[AGGIUNGI] Errore o tabella piena", QUI);
+
     // La metto anche in cima alla lista delle entry inserite
     coppia *c = (coppia *)e->data;
     // Salvo la vecchia lista dentro c->next
@@ -101,6 +96,7 @@ void aggiungi(char *s) {
     testa_lista_entry = e;
     // Incremento anche il numero di stringhe totali distinte inserite nella ht
     tot_stringhe_inHT += 1;
+  
   } else {
     // Altrimenti la stringa è già presente incremento solo il valore
     assert(strcmp(e->key, r->key) == 0);

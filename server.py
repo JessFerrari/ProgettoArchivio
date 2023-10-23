@@ -178,7 +178,7 @@ def archivio(readers, writers):
 def archivio_valgrind(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C passando anche valgrind
-    archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio.out", str(readers), str(writers)])
+    archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio", str(readers), str(writers)])
     print(f"[SERVER] Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind\n")
 
 
