@@ -140,3 +140,15 @@ void stampa_lista_entry() {
     lis = c->next;
   }
 }
+
+void clear_hash(){
+  //distruggo la hash table
+  distruggi_hash();
+  hdestroy();
+  testa_lista_entry = NULL; 
+  tot_stringhe_inHT = 0;
+}
+
+int numero_stringhe(){
+  return tot_stringhe_inHT;
+}

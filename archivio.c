@@ -18,8 +18,13 @@ void *capo_scrittore_body(void *arg);
 void *capo_lettore_body(void *arg);
 void *scrittore_body(void *arg);
 void *lettore_body(void *arg);
+void *gestore_segnali(void *arg);
 
-
+//-----Struct per i segnali-----//
+typedef struct { // Passo al gestore i capi in modo che ne possa fare la join
+  pthread_t *threadCapoLet;
+  pthread_t *threadCapoSc;
+} structSegnali;
 
 //-----Struct per i dati dei thread-----//
 
@@ -96,6 +101,7 @@ int main (int argc, char *argv[]){
     int r = atoi(argv[2]);
     assert(w>=3 && r>=3);
 
+
     //apro il file di log dove tengo le occorrenze lette
     FILE *lettoriLog = xfopen("lettori.log", "w", QUI);
 
@@ -151,13 +157,34 @@ int main (int argc, char *argv[]){
     cl.sem_data_items = &sem_data_items_let;
     cl.filelog = lettoriLog;
 
+    //inizializzo il thread per la gestione dei segnali
+    pthread_t gestore_sg;
+    structSegnali sg;
+    sg.threadCapoLet = &capo_lettore;
+    sg.threadCapoSc = &capo_scrittore;
+    //inizializzo la maschera dei segnali del main
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGUSR1);
+    pthread_sigmask(SIG_BLOCK, &mask, NULL);
+    //creo il thread
+    xpthread_create(&gestore_sg, NULL, gestore_segnali, &sg, __LINE__, __FILE__);
+    printf("[ARCHIVIO] Gestore segnali partito\n");
+
+
     //creo i thread
     xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
     xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
     
     //attendo la terminazione dei thread
-    pthread_join(capo_scrittore, NULL);
-    pthread_join(capo_lettore, NULL);
+    //La terminazione dei capi è gestita dal thread dei segnali
+    //pthread_join(capo_scrittore, NULL);
+    //pthread_join(capo_lettore, NULL);
+    if(xpthread_join(gestore_sg, NULL, QUI) !=0){
+        xtermina("[ARCHIVIO] Errore nella join del thread gestore segnali\n", QUI);
+    }
 
     stampa_lista_entry();    
 
@@ -521,4 +548,63 @@ void *capo_lettore_body(void *arg){
     xclose(fd, QUI);
     pthread_exit(NULL);
 
+}
+
+void *gestore_segnali(void *arg){
+    //recupero i dati
+    structSegnali *sg = (structSegnali *) arg;
+    //inizializzo la maschera dei segnali 
+    sigset_t mask;
+    //aggiungo i segnali che devo gestire
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGUSR1);
+
+    int segnale;
+
+    while(true){
+        int e = sigwait(&mask, &segnale);
+        if(e != 0){
+            xtermina("[ARCHIVIO] Errore nella sigwait\n", __LINE__, __FILE__);
+        }
+
+        if(segnale == SIGTERM){
+            fprintf(stdout, "[ARCHIVIO] RICEVUTO SIGTERM\n");
+
+            //faccio la join dei thread
+            if (xpthread_join(*(sg -> threadCapoLet), NULL, QUI) != 0){
+                xtermina("[SIGTERM] Errore nell'attesa del thread capolettore\n", QUI);
+            }
+            if (xpthread_join(*(sg -> threadCapoSc), NULL, QUI) != 0){
+                xtermina("[SIGTERM] Errore nell'attesa del thread caposcrittore\n", QUI);
+            }
+            int num_stringhe = numero_stringhe();
+            //stampo su stdout il numero di stringhe presenti nella hash table
+            fprintf(stdout, "[SIGTERM] Numero di stringhe distinte nella ht -> %d\n", num_stringhe);
+
+            //dealloco tutta la hash table
+            distruggi_hash();
+            hdestroy();
+            pthread_exit(NULL);
+        }
+
+        if(segnale == SIGINT){
+            fprintf(stdout, "[ARCHIVIO] RICEVUTO SIGINT\n");
+            int num_stringhe = numero_stringhe();
+            fprintf(stderr, "[SIGINT] Numero di stringhe distinte nella ht -> %d\n", num_stringhe);
+            continue;
+        }
+
+        if(segnale == SIGUSR1){
+            fprintf(stdout, "[ARCHIVIO] RICEVUTO SIGUSR1\n");
+            //Ripristino la hash table
+            clear_hash();
+            int ht = hcreate(Num_elem);
+            if(ht == 0)
+                xtermina("[MALLOC] Errore allocazione hashtable\n", __LINE__, __FILE__);
+            continue;
+        }
+    }
+    return NULL;
 }

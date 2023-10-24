@@ -2,10 +2,6 @@
 #include <search.h>
 #include <stdatomic.h>
 
-
-// Testa della lista per la tabella hash 
-
-
 // -------Struct per l'accesso concorrente di lettori e scrittori alla hash table --------------
 typedef struct {
   int readersHT; 
@@ -33,6 +29,7 @@ void write_unlock(rwHT *z);
 ENTRY *crea_entry(char *s, int n);
 void distruggi_entry(ENTRY *e);
 void distruggi_hash();
+void clear_hash();
 
 //funzioni usate dai thread scrittori e dai thread lettori
 void aggiungi (char *s);
@@ -41,3 +38,4 @@ int conta(char *s);
 //funzioni per la stampa 
 void stampa_entry(ENTRY *e);
 void stampa_lista_entry();
+int numero_stringhe();
