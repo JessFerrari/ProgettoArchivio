@@ -1,143 +1,137 @@
 #! /usr/bin/env python3
-import socket, sys, argparse, subprocess, time, signal, os, errno, struct, logging
+import Log
+import socket,  argparse, os, struct, logging, signal, threading, subprocess
 from concurrent.futures import ThreadPoolExecutor
-
 #inizializzo la socket del server 
 server_socket = None
-#variabile che conterrà il processo archivio
 archivio_subprocess = None
+#lock per scrivere nella pipe
+pipe_lock = threading.Lock()
 
-#gestione dei due tipi di connessioni
-def handle_client_connection(client_socket, client_address, caposc, capolet):
-    """
-    Funzione che gestisce le connessioni dei client.
-    Se è un client di tipo 1 instauro una connessione per ogni riga e la invio al processo archivio sulla pipe capolet.
-    Se è un client di tipo 2 instauro una connessione per ogni file e lo invio al processo archivio sulla pipe caposc.
-        client_socket : socket del client
-        client_address : indirizzo del client
-        capolet : pipe capolet
-        caposc : pipe caposc
-
-    """
-    # devo vedere se mi arriva un client di tipo 1 o di tipo 2
-    client_type = client_socket.recv(1).decode('utf-8')
-    #print(f"[SERVER] {client_address} : client di tipo {client_type}\n")
-    # se la connessione è di tipo 1 devo instaurare una connessione per ogni linea letta dal file
-    if client_type == "1":
-        print(f"[SERVER] {client_address} : client di tipo 1 - connessione di tipo A\n")
-        
-        # mantengo il numero di byte che il server deve mandare nella pipe capolet
-        num_bytes_to_send = 0
-        # variabile per la lunghezza della stringa
-        len_seq = 0
-        
-        while True:
-            print(f"[SERVER] ricevuta connessione di tipo A: {client_address}\n")
-            
-            # Ricevo la lunghezza della stringa in bytes
-            len_seq_in_bytes = recv_all(client_socket, 4)
-            #se la stringa è vuota esco dal while
-            if len_seq_in_bytes == 0:
-                break
-            len_seq = struct.unpack('!i', len_seq_in_bytes[:4])[0]
-            print(f"[SERVER] {client_address} lunghezza della stringa da leggere: {len_seq}\n")
-            if not len_seq:
-                break
-            len_seq_in_bytes = struct.pack('i', len_seq)
-            
-            # Ricevo la stringa in bytes
-            seq_in_bytes = recv_all(client_socket, len_seq)
-            print(f"{client_address} ricevuta la stringa in bytes: {seq_in_bytes}")
-            if not seq_in_bytes:
-                break
-            # decodifico la stringa
-            seq = seq_in_bytes.decode('utf-8')
-            print(f"[SERVER] {client_address} decodificata la stringa: {seq}")
-            #seq_in_bytes = struct.pack('<i', len(seq))
-
-            print(f"[SERVER] len_seq -> {len_seq}, seq -> {seq}")
-            print(f"[SERVER] len_seq_in_bytes -> {len_seq_in_bytes}, seq_in_bytes -> {seq_in_bytes}\n")
-            
-            num_bytes_to_send += (len(len_seq_in_bytes) + len(seq_in_bytes))
-
-            # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
-            os.write(capolet, len_seq_in_bytes)
-            os.write(capolet, seq_in_bytes)
-           
-            print(f"[SERVER] Sulla pipe capolet sono stati inviati {num_bytes_to_send} bytes in totale\n")
-            
-        #salvare su server log il numero di byte mandati
-        logging.info("[SERVER] connessione di tipo A: scritti %d bytes in capolet\n", num_bytes_to_send)
-        #chiudo la connessione 
-        client_socket.close()
-    #client di tipo 2
-    elif client_type == "2":
-        # instaura una connessione per ogni file che riceve dalla linea di comando
-        print(f"[SERVER] : {client_address} : client di tipo 2 - connessione di tipo B\n")
-        # mantengo il numero totale di byte che il server deve mandare nella pipe caposc
-        num_bytes_to_send = 0
-        # variabile per il  numero sìdi sequenze ricevute
-        tot_seq = 0
-        while True:
-            print(f"[SERVER] : ricevuta connessione di tipo B: {client_address}\n")
-            # Ricevo la lunghezza della stringa
-            len_seq_in_bytes = recv_all(client_socket, 4)
-            print(f"{client_address} ricevuta la lunghezza della stringa : {len_seq_in_bytes}\n")
-            # Se ricevo 4 bytes di 0 allora ho finito di mandare sequenze
-            # mando il numero sequenze ricevute
-            if len_seq_in_bytes == b'\x00\x00\x00\x00':
-               client_socket.sendall(struct.pack('!i', tot_seq))
-               break
-            len_seq = struct.unpack('!i', len_seq_in_bytes[:4])[0]
-            print(f"{client_address} unpacked lunghezza della stringa {len_seq}\n")
-            if not len_seq:
-               break
-       
-            # Ricevo la stringa in bytes
-            seq_in_bytes = recv_all(client_socket, len_seq)
-            print(f"{client_address} ricevuta la stringa {seq_in_bytes}\n")
-            if not seq_in_bytes:
-               break
-
-            # decodifico la stringa
-            seq = seq_in_bytes.decode('utf-8')
-
-            print(f"{client_address} decodificata la stringa {seq}\n")
-
-            print(f"[SERVER] len -> {len_seq_in_bytes}, string -> {seq}\n")
-            # invio la stringa (prima la sua lunghezza in byte e poi la stinga in byte) al processo archivio sulla pipe capolet
-            os.write(caposc, len_seq_in_bytes)
-            os.write(caposc, seq_in_bytes)
-            tot_seq += 1
-            num_bytes_to_send += len(len_seq_in_bytes) + len(seq_in_bytes)
-            
-        #stampo il numero totale di byte mandati
-        print(f"\n [SERVER] nella connessione {client_address} sono satti mandati {num_bytes_to_send} bytes\n")
-        #salvare su server log
-        logging.info("connessione di tipo B: scritti %d bytes in caposc\n", num_bytes_to_send)
-        # resetto il numero di byte mandati a caposc
-        num_bytes_to_send = 0
-        # chiudo la connessione
-        client_socket.close()
-
+#Si deve mettere in attesa sull'indirizzo 127.0.0.1 e sulla porta 55531
+#Ad ogni client che riceve deve assegnare un thread dedicato
+#I client che può ricevere sono di due tipo: 
+    #Tipo A che invia al server una singola sequenza di byte e ilserver la deve scrivere nalla pipe capolet
+    #Tipo B che invia al server un numero imprecisato di sequenze di byte e il server le deve scrivere nalla pipe caposc. Infine il server invia al client il numero di sequenze ricevute
+#deve gestire un file di log di nome server.log e scriverci il tipo di connessione e il numero di bytes scritti nella rispettiva pipe 
+#Gestisce gli argomenti usando argparse
+#fa partire il processo archivio, sia normalmente che con valgrind
+#Se viene inviato il segnale SIGINT il aserver termina l'esecuzione chiudendo il socket, cancellandoo le fifo e inviando il segnale sigterm al programma archivio
 
 def recv_all(conn,n):
-  """
-Funzione mostrata a lezione, riceve esattamente n byte dal socket conn e li restituisce
-Il tipo restituto è "bytes": una sequenza immutabile di valori 0-255
-Questa funzione è analoga alla readn che abbiamo visto nel C
-  conn : socket
-  n : numero di byte  
-  """
-  chunks = b''
-  bytes_recd = 0
-  while bytes_recd < n:
-    chunk = conn.recv(min(n - bytes_recd, 2048))
-    if len(chunk) == 0:
-      return 0
-    chunks += chunk
-    bytes_recd = bytes_recd + len(chunk)
-  return chunks  
+    """
+    Funzione mostrata a lezione, riceve esattamente n byte dal socket conn e li restituisce
+    Il tipo restituto è "bytes": una sequenza immutabile di valori 0-255
+    Questa funzione è analoga alla readn che abbiamo visto nel C
+    conn : socket
+    n : numero di byte  
+    """
+    chunks = b''
+    bytes_recd = 0
+    while bytes_recd < n:
+        chunk = conn.recv(min(n - bytes_recd, 2048))
+        if len(chunk) == 0:
+            return 0
+        chunks += chunk
+        bytes_recd = bytes_recd + len(chunk)
+    return chunks  
+
+def write_in_pipe(pipe, size, data):
+    '''Funzione per scrivere in una pipe.
+    pipe : pipe
+    size : numero di byte della sequenza
+    data : sequenza
+    '''
+    with pipe_lock:
+        try:
+            if isinstance(size, bytes):
+                os.write(pipe, size)
+                Log.PrintServer(f"Ho scritto la lunghezza nella pipe {pipe}")
+            else:
+                Log.PrintServer(f"Errore: size non è di tipo bytes",3)
+        except (IOError, OSError) as e:
+            Log.PrintServer(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
+        try:
+            if isinstance(data, bytes):
+                os.write(pipe, data)
+                Log.PrintServer(f"Ho scritto la sequenza di byte nella pipe {pipe}")
+            else:
+                Log.PrintServer(f"Errore: data non è di tipo bytes",3)
+        except (IOError, OSError) as e:
+            Log.PrintServer(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
+
+            
+
+def gest_connessione(conn, addr, capolet, caposc):
+    '''Funzione per gestire i client.
+    Se ricevo un client di tipo 1 allora verrà instaurata una connessione di tipo A.
+    Altrimenti, se ricevo un client di tipo 2 allora verranno instaurate una connessione di tipo B.
+    conn : socket
+    addr : address
+    capolet : pipe capolet
+    caposc : pipe caposc
+    '''
+    #Il client mi ha mandato una richiesta
+    Log.PrintServer(f"mi ha contattato il client{addr}")
+    #Ricevo un byte che mi indica se il client è di tipo 1 o 2
+    client_type = recv_all(conn, 1).decode("utf-8")
+    Log.PrintServer(f"Il client{addr} ha invuiato la richiesta di connessione di tipo {client_type}")
+    #Il client è di tipo 1
+    if client_type == "1":
+        #Instauro una connessione di tipo A
+        Log.PrintServer(f"Instaurata una connessione di tipo A con Client {addr} di tipo 1")
+        bytes_written_capolet = 0
+        #Ricevo la lunghezza della sequenza di byte che sto per ricevere (4 bytes)
+        length_in_bytes = recv_all(conn, 4)
+        #Trasformo la sequenza di byte in un intero
+        length = struct.unpack('i', length_in_bytes[:4])[0]
+        #Ricevo la sequenza di byte
+        data = recv_all(conn, length)
+        #Scrivo la lunghezza della sequenza di byte nella pipe capolet
+        os.write(capolet, length_in_bytes)
+        #Scrivo la sequenza di byte
+        os.write(capolet, data)
+        bytes_written_capolet = bytes_written_capolet + length + 4
+        #Registro le informazioni dei bytes scritti nella pipe capolet su file di log
+        logging.info(f"Connessione di tipo A - byte scritti su 'capolet' -> {bytes_written_capolet}")
+        #chiudo la connessione
+        conn.close()
+
+        #il client è di tipo 2
+    elif client_type == "2":
+        #Instauro una connessione di tipo B
+        Log.PrintServer(f"Instaurata una connessione di tipo B con Client {addr} di tipo 2")
+        bytes_written_caposc = 0
+        tot_recived_seq = 0
+        while True:
+            #Ricevo la lunghezza della sequenza di byte che sto per ricevere (4 bytes)
+            length_in_bytes = recv_all(conn, 4)
+            #se è 0 allora il client ha finito la connessione
+            if length_in_bytes == b'\x00\x00\x00\x00':
+                Log.PrintServer(f"Ho ricevuto una sequenza di 0 bytes. Il client{addr} ha finito la connessione")
+                break
+            Log.PrintServer(f"Ricevuta lunghezza {length_in_bytes}")
+            #Trasformo la sequenza di byte in un intero
+            length = struct.unpack('!i', length_in_bytes[:4])[0]
+            Log.PrintServer(f"La lunghezza ricevuta è {length} bytes")
+            
+            #Ricevo la sequenza di byte
+            data = recv_all(conn, length)
+            Log.PrintServer(f"Ricevuta la sequenza di byte {data}")
+
+            #Scrivo nella pipe caposc la dimensione e la sequenza di byte
+            write_in_pipe(caposc, length_in_bytes, data)
+
+            tot_recived_seq = tot_recived_seq + 1
+            bytes_written_caposc = bytes_written_caposc + length + 4
+
+        #Registro le informazioni dei bytes scrittiInThe pipe capolet su file di log
+        logging.info(f"Connessione di tipo B - byte scritti su 'caposc' -> {bytes_written_caposc}")
+        #HA SENSO RESETTARE bytes_written_caposc???? NO...
+        #invio al client il numero di sequenze ricevute
+        conn.sendall(struct.pack('i', tot_recived_seq))
+        #chiudo la connessione
+        conn.close()
 
 def shutdown_server(signum, frame):
     """
@@ -145,8 +139,7 @@ Funzione per terminare il server con il comando CTRL+C.
     signum : rappresenta il numero dell segnale.
     frame : rappresenta il frame corrente dello stack.
 """
-    global server_socket, archivio_subprocess
-    print("[...TERMINAZIONE SERVER...]") 
+    Log.NormalPrint("[...TERMINAZIONE SERVER...]") 
      
     # Chiude il socket del server
     server_socket.shutdown(socket.SHUT_RDWR)
@@ -159,102 +152,90 @@ Funzione per terminare il server con il comando CTRL+C.
         os.unlink("capolet")
     
     # Invia il segnale SIGTERM al processo archivio
-    archivio_subprocess.send_signal(signal.SIGTERM)
+    #archivio_subprocess.send_signal(signal.SIGTERM)
 
-    print("<[SERVER TERMINATO]>")
+    Log.NormalPrint("<[SERVER TERMINATO]>")
     exit()
 
-def archivio(readers, writers):
-    """
-    Funzione che lancia il programma archivio passando il numero di scrittori e lettori (minimo 3)
-        readers : numero di lettori
-        writers : numero di scrittori
-    """
-    global archivio_subprocess, server_socket
-    # Eseguo il programma archivio.c
-    archivio_subprocess = subprocess.Popen(["./archivio", str(readers), str(writers)])
-    print(f"[SERVER] Eseguo il programma archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori\n")
+'''def archivio_normale(readers, writers):
+    global server_socket, archivio_subprocess
+    # Esegue il programma C
+    archivio_subprocess = subprocess.Popen(['./archivio.out', str(readers), str(writers)])
+    Log.PrintServer(f"Lancio il processo archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori")
 
+# Funzione che lancia archivio con valgrind, passando il numero di lettori e scrittori e i parametri che il professore ha utilizzato in manager.py
 def archivio_valgrind(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C passando anche valgrind
-    archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio", str(readers), str(writers)])
-    print(f"[SERVER] Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind\n")
+    archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio.out", str(readers), str(writers)])
+    Log.PrintServer(f"Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind")
+'''
 
+def mainServer(numMaxThreads, writers, readers, valgrind):
+    '''
+    Funzione principale del server
+    numMaxThreads : numero massimo di threads
+    writers : numero di writers
+    readers : numero di readers
+    valgrind : booleano che indica se si vuole usare valgrind'''
 
-def mainServer(thread_count, readers, writers, valgrind):
-    """
-    Funzione che gestisce il server.
-    """ 
-
-    global server_socket, archivo_subprocess
-    host = "127.0.0.1"
+    #configuro il server
+    host = 'localhost'
     port = 55531
-    # inizializzo il socket del server
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #crea un socket
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #permette di riutilizzare il socket
-    server_socket.bind((host, port)) #associa l'indirizzo alla porta
-    server_socket.listen(5) #attiva il listening con 5 connessioni
-    print("[SERVER] in ascolto sulla porta %d\n" % port)
 
-    #creazione di un threadpool
-    executor = ThreadPoolExecutor(max_workers=thread_count)
-    print("[SERVER] threadpool creato\n")
+    #creo il socket del server
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind((host, port))
+    server_socket.listen(numMaxThreads)
+    Log.PrintServer(f"Server in ascolto su {host}:{port}")
 
-    #inzializzazione delle pipes
-    # controllo se esistono di già se no le creo
+    #creo il threadpool per gestire i client
+    executor = ThreadPoolExecutor(max_workers=numMaxThreads)
+    Log.PrintServer(f"threadpool in creato con {numMaxThreads} thread")
+
+    #inizializzo le pipes
     if not os.path.exists("capolet"):
-        try:
-            os.mkfifo("capolet", 0o0666) 
-            print("[SERVER] capolet creato\n")
-        except FileExistsError:
-            print("[SERVER] capolet gia esistente")
-
+        os.mkfifo("capolet", 0o0666)
+        Log.PrintServer(f"pipe capolet creato")
     if not os.path.exists("caposc"):
-        try:
-            os.mkfifo("caposc", 0o0666)
-            print("[SERVER] caposc creato\n")  
-        except FileExistsError:
-            print("[SERVER] caposc gia esistente")
-    
-    if(readers<3):
-        readers = 3
-    if(writers<3):
-        writers = 3
-    #inizializzazione del processo archivio. Se valgrind = 1 esegue il programma archivio con valgrind
-    if valgrind:
-        archivio_valgrind(readers, writers)
-    else:
-        archivio(readers, writers)
-    
+        os.mkfifo("caposc", 0o0666)
+        Log.PrintServer(f"pipe caposc creato")
+
+    #faccio partire archivio
+    #if valgrind:
+    #    archivio_valgrind(readers, writers)
+    #else:
+    #    archivio_normale(readers, writers)
+
     #apro le pipes
     try:
         capolet = os.open("capolet", os.O_WRONLY)
+        Log.PrintServer(f"pipe capolet aperta in scrittura")
         caposc = os.open("caposc", os.O_WRONLY)
-        print("\n[SERVER] capolet e caposc aperti in SCRITTURA\n")
+        Log.PrintServer(f"pipe caposc aperta in scrittura")
     except Exception as e:
-        print(f"Error: {e}")
+        Log.PrintServer(f"Errore durante l'apertura delle pipes: {e}")
 
+    #configuro il file di log
+    logging.basicConfig(filename="server.log", level=logging.INFO, format='%(asctime)s - %(message)s')
 
-    #configurazione del file di log
-    logging.basicConfig(filename='server.log', level=logging.INFO, format='%(asctime)s - %(message)s')
-
-    #gestione del SIGINT
+    #gestisco i segnali
     signal.signal(signal.SIGINT, shutdown_server)
 
+    #accetto le connessioni
     while True:
-        client_socket, client_address = server_socket.accept()
-        executor.submit(handle_client_connection, client_socket, client_address, caposc, capolet)
-        print("[SERVER] accettato nuovo client")
+        conn, addr = server_socket.accept()
+        #assegno un thread ad ogni connessione
+        executor.submit(gest_connessione, conn, addr, capolet, caposc)
 
 if __name__ == "__main__":
-    # Creazione del parser e definizione dei parametri
-    parser = argparse.ArgumentParser(description='Uso: ./server.py [thread_count] [readers] [writers]')
-    parser.add_argument('thread_count', type=int, help='Numero massimo di thread')
-    parser.add_argument('-r', '--readers', type=int, default=3, help='Numero di lettori, escluso il capo')
-    parser.add_argument('-w','--writers', type=int, default=3, help='Numero di scrittori, escluso il capo')
-    parser.add_argument('-v', '--valgrind', action='store_true', help='Esegue il programma archivio con valgrind')
-
+    parser = argparse.ArgumentParser(description="USE: ./server.py numMaxThreads -r n.readers -w n.writers -v")
+    parser.add_argument("numMaxThreads", type=int, help="numero massimo di threads")
+    parser.add_argument("-r", "--readers", type=int, default=3, help="Numero di lettori")
+    parser.add_argument("-w", "--writers", type=int, default=3, help="Numero di scrittori")
+    parser.add_argument("-v", "--valgrind", action="store_true", help="valgrind")
     args = parser.parse_args()
+    mainServer(args.numMaxThreads, args.readers, args.writers, args.valgrind)
 
-    mainServer(args.thread_count, args.readers, args.writers, args.valgrind)
+    
