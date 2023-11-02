@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
         server_addr.sin_family = AF_INET;
         server_addr.sin_addr.s_addr = inet_addr(HOST);
         server_addr.sin_port = htons(PORT);
-        
+    
         if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
             printf("[CLIENT1] Errore connessione client1 sulla porta %d\n", htons(PORT));
             fclose(f);

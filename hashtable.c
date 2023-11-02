@@ -4,7 +4,6 @@ atomic_int tot_stringhe_inHT = 0;
 #define QUI __LINE__,__FILE__
 
 
-
 // ---- soluzone per il problema lettori/scrittori ----
 // ------------ unfair per gli scrittori --------------
 

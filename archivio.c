@@ -335,7 +335,8 @@ void *capo_scrittore_body(void *arg){
         input_buffer[bytes_letti] = '\0' ;
         //tokenizzo la stringa
         char *copia;
-        char *token = strtok(input_buffer, ".,:; \n\r\t");
+        char *saveptr;
+        char *token = strtok_r(input_buffer, ".,:; \n\r\t", &saveptr);
         while(token != NULL){
             copia = strdup(token);
             //aggiungo copia al buffer
@@ -349,7 +350,7 @@ void *capo_scrittore_body(void *arg){
 
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cs->sem_data_items, __LINE__, __FILE__);
-            token = strtok(NULL, ".,:; \n\r\t");
+            token = strtok_r(NULL, ".,:; \n\r\t", &saveptr);
         }
     }
 
@@ -491,7 +492,8 @@ void *capo_lettore_body(void *arg){
 
         //tokenizzo la stringa
         char *copia;
-        char *token = strtok(input_buffer, ".,:; \n\r\t");
+        char *saveptr;
+        char *token = strtok_r(input_buffer, ".,:; \n\r\t", &saveptr);
         while(token != NULL){
             copia = strdup(token);
             //aggiungo copia al buffer
@@ -504,7 +506,7 @@ void *capo_lettore_body(void *arg){
             *(cl->np) += 1;
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cl->sem_data_items, __LINE__, __FILE__);
-            token = strtok(NULL, ".,:; \n\r\t");
+            token = strtok_r(NULL, ".,:; \n\r\t", &saveptr);
         }
     }
    

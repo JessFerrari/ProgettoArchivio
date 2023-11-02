@@ -38,7 +38,6 @@ void xclose(int fd, int linea, char *file) {
   return;
 }
 
-
 // ---- semafori POSIX
 
 // IMPORTANTE: i semafori posix sono usati sia da processi che da threads
@@ -48,7 +47,6 @@ void xclose(int fd, int linea, char *file) {
 // (usare pthread_exit per i processi ugualmente non è accettabile 
 // perché poi invoca exit(0)). 
 // Si potrebbe distinguere thread da processi con gettid(2)
-
 
 // semafori NAMED
 sem_t *xsem_open(const char *name, int oflag, mode_t mode, 

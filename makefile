@@ -1,12 +1,12 @@
 # definizione del compilatore e dei flag di compilazione
 # che vengono usate dalle regole implicite
-CC=gcc
-CFLAGS=-std=c11 -Wall -g -O -pthread
-LDLIBS=-lm -lrt -pthread
+CC = gcc
+CFLAGS = -std=c11 -Wall -g -O -pthread
+LDLIBS = -lm -lrt -pthread
 
 
 # definizione degli eseguibili
-EXECS= archivio client1
+EXECS = archivio client1
 
 # se si scrive solo make di default compila main.c
 all: $(EXECS)
