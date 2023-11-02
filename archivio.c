@@ -84,7 +84,7 @@ int main (int argc, char *argv[]){
     //creo la tabella hash
     int ht = hcreate(Num_elem);
     if(ht == 0){
-        xtermina("[MALLOC] Errore allocazione hashtable\n", __LINE__, __FILE__);
+        xtermina("[ARCHIVIO] Errore allocazione hashtable\n", __LINE__, __FILE__);
     }
 
     //assegno i valori per la struct rwHT
@@ -189,13 +189,6 @@ int main (int argc, char *argv[]){
     }
     printf("[ARCHIVIO] Gestore segnali terminato\n");
 
-    for(int i= 0; i<PC_buffer_len; i++){
-        free(buffsc[i]);
-    }
-    for(int i = 0; i<PC_buffer_len; i++){
-        free(bufflet[i]);
-    }
-
     distruggi_hash();
 
     fclose(lettoriLog);
@@ -244,6 +237,7 @@ void *scrittore_body(void *arg){
             write_lock(rw);
             printf("[ARCHIVIO] Thread scrittore %d aggiunge %s\n", ds->id, parola);
             aggiungi(parola);
+            free(parola);
             stampa_lista_entry();
             write_unlock(rw);
         }
@@ -253,8 +247,6 @@ void *scrittore_body(void *arg){
 
       
     }while(parola != NULL);
-
-    fprintf(stdout, "[ARCHIVIO] SCRITTORE %d HA LETTO %d PAROLE\n", ds->id, np);
     pthread_exit(NULL);
 }
 
@@ -294,9 +286,8 @@ void *capo_scrittore_body(void *arg){
     printf("[ARCHIVIO] FIFO caposc aperta in lettura\n");
 
     //dati per leggere dalla pipe
-    int size = 2 ;
-
-    char *input_buffer = malloc(size*sizeof(char));
+    int size = 0;
+    char *input_buffer = malloc(sizeof(char));
     if(input_buffer==NULL){
         xtermina("[ARCHIVIO] Errore allocazione memoria\n", __LINE__, __FILE__);
     }
@@ -342,7 +333,6 @@ void *capo_scrittore_body(void *arg){
 
         //aggiungo 0 alla fine della stringa 
         input_buffer[bytes_letti] = '\0' ;
-
         //tokenizzo la stringa
         char *copia;
         char *token = strtok(input_buffer, ".,:; \n\r\t");
@@ -353,24 +343,20 @@ void *capo_scrittore_body(void *arg){
             xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cs->buffsc[*(cs->index) % PC_buffer_len] = copia;
-                //fprintf(stdout, "[ARCHIVIO] BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
                 *(cs->index) += 1;
             }
             *(cs->np) += 1;
+
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cs->sem_data_items, __LINE__, __FILE__);
-        
             token = strtok(NULL, ".,:; \n\r\t");
         }
     }
-
-    fprintf(stdout, "[ARCHIVIO] CAPO SCRITTORE HA SCRITTO %d PAROLE\n", *(cs->np));
 
     //termino gli scrittori aggiungendo null nel buffer    
     for(int i=0; i<*(cs->numero_scrittori); i++){
         xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
         cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
-        //fprintf(stdout, "[ARCHIVIO] BUFFER[%d] : %s\n", *(cs->index)%PC_buffer_len, cs->buffsc[*(cs->index)%PC_buffer_len]);
         *(cs->index) += 1;
         xsem_post(cs->sem_data_items, __LINE__, __FILE__);
     }
@@ -392,21 +378,17 @@ void *capo_scrittore_body(void *arg){
 void *lettore_body(void *arg){
     //recupero i dati
     datiLettori *dl = (datiLettori *) arg;
-    //fprintf(stdout, "[ARCHIVIO] Lettore %d partito:\n", dl->id);
     int np = 0;
     rwHT *rw = &struct_rwHT;
     char *parola;
     //int conto = 0;
 
     do{
-        //fprintf(stdout,"[ARCHIVIO] [INDEX LETTORE %d] : %d\n", dl->id, *(dl->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(dl->sem_data_items, __LINE__, __FILE__);
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(dl->mutex, QUI);
         parola = dl->bufflet[*(dl->index) % PC_buffer_len];
-        /*if(parola!=NULL) {conto = conta(parola);
-        printf("[ARCHIVIO] Parola : %s, Conto : %d\n", parola, conto); }*/
         *(dl->index) += 1;
 
         //rilascio la mutex
@@ -416,9 +398,9 @@ void *lettore_body(void *arg){
         //devo poi contare le occorenze della parola nella hash table
         if(parola!=NULL){
             read_lock(rw);
-            printf("--------------------Ci arrivoooooooooo\n");
             int occorenze = conta(parola);
             fprintf(dl->filelog, "%s %d\n", parola, occorenze);
+            free(parola);
             read_unlock(rw);
         }
 
@@ -427,11 +409,6 @@ void *lettore_body(void *arg){
 
 
     }while(parola != NULL);
-
-    fprintf(stdout, "[ARCHIVIO] LETTORE %d HA LETTO %d PAROLE\n", dl->id, np);
-    
-
-    
     pthread_exit(NULL);
 }
 
@@ -491,7 +468,6 @@ void *capo_lettore_body(void *arg){
             break;
         }
 
-
         //realloco il buffer con la dimensione giusta
         input_buffer = realloc(input_buffer, (size+1) * sizeof(char));
         if(input_buffer==NULL){
@@ -500,19 +476,18 @@ void *capo_lettore_body(void *arg){
 
         //leggo la sequenza di n byte
         bytes_letti = read(fd, input_buffer, size);   
-        
+    
         if(bytes_letti==0){
             printf("[ARCHIVIO] FIFO capolet chiusa in scrittura\n");
             break;
         }
         if(bytes_letti != size){
-            printf("[ARCHIVIO ERRORE 2] nella lettura della sequenza di byte: ho letto %ld byte al posto di %d\n", bytes_letti, size);
+            printf("[ARCHIVIO] nella lettura della sequenza di byte: ho letto %ld byte al posto di %d\n", bytes_letti, size);
         }
 
         //aggiungo 0 alla fine della stringa
         input_buffer[bytes_letti] = '\0' ;
         printf("[ARCHIVIO] ho letto la sequenza di byte dalla FIFO capolet : %s\n", input_buffer);
-
 
         //tokenizzo la stringa
         char *copia;
@@ -524,7 +499,6 @@ void *capo_lettore_body(void *arg){
             xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
             if(copia != NULL){
                 cl->bufflet[*(cl->index) % PC_buffer_len] = copia;
-                //fprintf(stdout, "[ARCHIVIO] BUFFER LETTORE[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
                 *(cl->index) += 1;
             }
             *(cl->np) += 1;
@@ -535,12 +509,10 @@ void *capo_lettore_body(void *arg){
     }
    
     fprintf(stdout, "[ARCHIVIO] CAPO LETTORE HA SCRITTO %d PAROLE\n", *(cl->np));
-
     //termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
         cl->bufflet[*(cl->index) % PC_buffer_len] = NULL;
-        //fprintf(stdout, "[ARCHIVIO] BUFFER LETTORE[%d] : %s\n", *(cl->index)%PC_buffer_len, cl->bufflet[*(cl->index)%PC_buffer_len]);
         *(cl->index) += 1;
         xsem_post(cl->sem_data_items, __LINE__, __FILE__);
     }
@@ -550,7 +522,6 @@ void *capo_lettore_body(void *arg){
         pthread_join(tL[i], NULL);
     }
     xpthread_mutex_destroy(&mutexL, QUI);
-
     free(input_buffer);
     xclose(fd, QUI);
     pthread_exit(NULL);
@@ -575,7 +546,6 @@ void *gestore_segnali(void *arg){
         if(e != 0){
             xtermina("[ARCHIVIO] Errore nella sigwait\n", __LINE__, __FILE__);
         }
-
         if(segnale == SIGTERM){
             fprintf(stdout, "[ARCHIVIO] RICEVUTO SIGTERM\n");
 
@@ -591,17 +561,14 @@ void *gestore_segnali(void *arg){
             fprintf(stdout, "[SIGTERM] Numero di stringhe distinte nella ht -> %d\n", num_stringhe);
             stampa_lista_entry();
             pthread_exit(NULL);
-            printf("[SIGTERM] NON DEVE ARRIVARE QUIIIII Thread gestore segnali terminato\n");
 
         }
-
         if(segnale == SIGINT){
             fprintf(stdout, "[ARCHIVIO] RICEVUTO SIGINT\n");
             int num_stringhe = numero_stringhe();
             fprintf(stderr, "[SIGINT] Numero di stringhe distinte nella ht -> %d\n", num_stringhe);
             continue;
         }
-
         if(segnale == SIGUSR1){
             fprintf(stdout, "[ARCHIVIO] RICEVUTO SIGUSR1\n");
             //Ripristino la hash table

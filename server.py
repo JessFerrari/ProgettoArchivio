@@ -217,6 +217,11 @@ def mainServer(numMaxThreads, writers, readers, valgrind):
         os.mkfifo("caposc", 0o0666)
         Log.print_server(f"pipe caposc creato")
 
+    if(writers<3):
+        writers = 3
+    if(readers<3):
+        readers = 3
+
     #faccio partire archivio
     if valgrind:
         archivio_valgrind(readers, writers)
