@@ -8,12 +8,11 @@
 // termina un processo con eventuale messaggio d'errore + linea e file
 void xtermina(const char *messaggio, int linea, char *file) {
   if(errno==0)  fprintf(stderr,"== %d == %s\n",getpid(), messaggio);
-  else fprintf(stderr,"== %d == %s: %s\n",getpid(), messaggio,
-               strerror(errno));
+  else fprintf(stderr,"== %d == %s: %s\n",getpid(), messaggio, strerror(errno));
   fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
-
   exit(1);
 }
+
 
 
 
@@ -40,7 +39,7 @@ void xclose(int fd, int linea, char *file) {
 }
 
 
-// -------------- operazioni su processi
+// -------------- operazioni su processi (Non usate)
 pid_t xfork(int linea, char *file)
 {
   pid_t p = fork();
@@ -62,6 +61,7 @@ pid_t xwait(int *status, int linea, char *file)
   }
   return p;
 }
+// --------------
 
 
 int xpipe(int pipefd[2], int linea, char *file) {

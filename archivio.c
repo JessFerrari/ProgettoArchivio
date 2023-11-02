@@ -1,5 +1,6 @@
 #include "hashtable.h"
 #include "xerrori.h"
+#include <arpa/inet.h>
 
 #define QUI __LINE__,__FILE__
 
@@ -9,9 +10,8 @@
 #define Num_elem 1000000
 #define Max_sequence_length 2048
 
-//-----Struct per la tabella hash-----//
+//-----Struct per scrivere e leggere nella tabella hash-----//
 rwHT struct_rwHT;
-
 
 //funzioni sotto al main per i thread
 void *capo_scrittore_body(void *arg);
@@ -20,8 +20,8 @@ void *scrittore_body(void *arg);
 void *lettore_body(void *arg);
 void *gestore_segnali(void *arg);
 
-//-----Struct per i segnali-----//
-typedef struct { // Passo al gestore i capi in modo che ne possa fare la join
+//-----Struct per il thread gestore dei segnali-----//
+typedef struct { //Passo al gestore i thread capi in modo che ne possa fare la join
   pthread_t *threadCapoLet;
   pthread_t *threadCapoSc;
 } structSegnali;
@@ -105,14 +105,14 @@ int main (int argc, char *argv[]){
     //apro il file di log dove tengo le occorrenze lette
     FILE *lettoriLog = xfopen("lettori.log", "w", QUI);
 
-    //creo i buffer per il capo lettore e per il capo scrittore con i rispettivi indici
-    char **buffsc = malloc(PC_buffer_len * sizeof(char *));
+    //creo i buffer per il capo  lettore e per il capo scrittore con i rispettivi indici
+    char **buffsc = calloc(PC_buffer_len, sizeof(char *));
     if(buffsc==NULL){
-        xtermina("[MALLOC] Errore allocazione memoria\n", __LINE__, __FILE__);
+        xtermina("[ARCHIVO] Errore allocazione memoria\n", __LINE__, __FILE__);
     }
-    char **bufflet = malloc(PC_buffer_len * sizeof(char *));
+    char **bufflet = calloc(PC_buffer_len, sizeof(char *));
     if(bufflet == NULL){
-        xtermina("[MALLOC] Errore allocazione memoria\n", __LINE__, __FILE__);
+        xtermina("[ARCHIVIO] Errore allocazione memoria\n", __LINE__, __FILE__);
     }
     int indexSC = 0;
     int indexLET = 0;
@@ -120,13 +120,14 @@ int main (int argc, char *argv[]){
     int nplet = 0;
 
     //creo i semafori che utilizzano i capi con i relatvi thread per leggere e scrivere nei rispettivi buffer
+    
     //semafori per gli scrittori
     sem_t sem_data_items_sc;
     sem_t sem_free_slots_sc;
     //semafori per i lettori
     sem_t sem_data_items_let;
     sem_t sem_free_slots_let;
-
+    //inizializzo i semafori
     xsem_init(&sem_data_items_sc, 0, 0, __LINE__, __FILE__ );
     xsem_init(&sem_free_slots_sc, 0, PC_buffer_len, __LINE__, __FILE__);
     xsem_init(&sem_data_items_let, 0, 0, __LINE__, __FILE__ );
@@ -157,9 +158,11 @@ int main (int argc, char *argv[]){
     cl.sem_data_items = &sem_data_items_let;
     cl.filelog = lettoriLog;
 
-    //inizializzo il thread per la gestione dei segnali
+    
+    //thread gestore dei segnali
     pthread_t gestore_sg;
     structSegnali sg;
+    //inizializzo il thread per la gestione dei segnali
     sg.threadCapoLet = &capo_lettore;
     sg.threadCapoSc = &capo_scrittore;
     //inizializzo la maschera dei segnali del main
@@ -174,72 +177,84 @@ int main (int argc, char *argv[]){
     printf("[ARCHIVIO] Gestore segnali partito\n");
 
 
+
     //creo i thread
     xpthread_create(&capo_scrittore, NULL, &capo_scrittore_body, &cs, __LINE__, __FILE__);
     xpthread_create(&capo_lettore, NULL, &capo_lettore_body, &cl, __LINE__, __FILE__);
     
-    //attendo la terminazione dei thread
+   
     //La terminazione dei capi è gestita dal thread dei segnali
-    //pthread_join(capo_scrittore, NULL);
-    //pthread_join(capo_lettore, NULL);
     if(xpthread_join(gestore_sg, NULL, QUI) !=0){
         xtermina("[ARCHIVIO] Errore nella join del thread gestore segnali\n", QUI);
     }
+    printf("[ARCHIVIO] Gestore segnali terminato\n");
 
-    stampa_lista_entry();    
-
-    for(int i= 0; i<npsc; i++){
+    for(int i= 0; i<PC_buffer_len; i++){
         free(buffsc[i]);
     }
-    for(int i = 0; i<nplet; i++){
+    for(int i = 0; i<PC_buffer_len; i++){
         free(bufflet[i]);
     }
 
     distruggi_hash();
+    printf("[ARCHIVIO] Hashtable distrutta\n");
 
     fclose(lettoriLog);
+    printf("[ARCHIVIO] Loglettori chiuso\n");
     xpthread_mutex_destroy(&mutexHT, QUI);
+    printf("[ARCHIVIO] Mutex HT distrutto\n");
     xpthread_cond_destroy(&condHT, QUI);
+    printf("[ARCHIVIO] Cond HT distrutto\n");
     xsem_destroy(&sem_data_items_sc, QUI);
+    printf("[ARCHIVIO] Sem data items scrittori distrutto\n");
     xsem_destroy(&sem_free_slots_sc, QUI);
+    printf("[ARCHIVIO] Sem free slots scrittori distrutto\n");
     xsem_destroy(&sem_data_items_let, QUI);
+    printf("[ARCHIVIO] Sem data items lettori distrutto\n");
     xsem_destroy(&sem_free_slots_let, QUI);
+    printf("[ARCHIVIO] Sem free slots lettori distrutto\n");
 
     free(buffsc);
+    printf("[ARCHIVIO] BUFFSC distrutto\n");
     free(bufflet);
+    printf("[ARCHIVIO] BUFFLET distrutto\n");
     return 0;
 }
 
 
 //Funzione scrittore
 void *scrittore_body(void *arg){
+
     //recupero i dati
     datiScrittori *ds = (datiScrittori *) arg;
-    //fprintf(stdout, "[ARCHIVIO] Scrittore %d partito:\n", ds->id);
+
     rwHT *rw = &struct_rwHT;
     char *parola;
     int np = 0;
 
     do{
-        //fprintf(stdout,"[ARCHIVIO] INDEX SCRITORE %d : %d\n", ds->id, *(ds->index)%PC_buffer_len);
         //faccio la sem wait sul semaforo dei dati (sto per togliere un dato quindi se è 0 aspetterò)
         xsem_wait(ds->sem_data_items, __LINE__, __FILE__);
+
         //per leggere una parola dal buffer devo acquisire la mutex
         xpthread_mutex_lock(ds->mutex, QUI);
         parola = ds->buffsc[*(ds->index) % PC_buffer_len];
-        //fprintf(stdout, "[ARCHIVIO] SCRITTORE %d, INDEX %d, PAROLA %s\n", ds->id, *(ds->index), parola);
         *(ds->index) += 1;
 
         //rilascio la mutex
         xpthread_mutex_unlock(ds->mutex, QUI);
-        np++; //incremento il numero di parole lette
+        //incremento il numero di parole lette
+        np++;
+
         //aggiungo la parola nella tabella hash
         if(parola != NULL){
             write_lock(rw);
             printf("[ARCHIVIO] Thread scrittore %d aggiunge %s\n", ds->id, parola);
             aggiungi(parola);
+            stampa_lista_entry();
             write_unlock(rw);
         }
+
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
 
@@ -281,9 +296,9 @@ void *capo_scrittore_body(void *arg){
     //apro la pipe CAPOSC da cui leggerò le sequenze di byte
     int fd = open(FIFO_CAPOSC, O_RDONLY);
     if(fd==-1){
-        xtermina("[ARCHIVIO]  Errore apertura FIFO caposc.\n", __LINE__, __FILE__);
+        xtermina("[ARCHIVIO] Errore apertura FIFO caposc.\n", __LINE__, __FILE__);
     }
-    printf("[ARCHIVIO PIPE CAPOSC] FIFO caposc aperta in lettura\n");
+    printf("[ARCHIVIO] FIFO caposc aperta in lettura\n");
 
     //dati per leggere dalla pipe
     int size = 2 ;
@@ -297,6 +312,11 @@ void *capo_scrittore_body(void *arg){
 
         //leggo la dimensione della sequenza di bytes
         ssize_t bytes_letti = read(fd, &size, sizeof(int));
+        size = ntohl(size);
+
+        if(bytes_letti==-1){
+            xtermina("[ARCHIVIO] Errore nella lettura della dimensione della sequenza di byte\n", __LINE__, __FILE__);
+        }
 
         if(bytes_letti == 0){
             printf("[ARCHIVIO] FIFO caposc chiusa in lettura\n");
@@ -304,9 +324,11 @@ void *capo_scrittore_body(void *arg){
         }
 
         if(bytes_letti != sizeof(int)){
-            perror("[ARCHIVIO CAPOSC LUNGHEZZA]Errore nella lettura della lunghezza della sequenza di byte\n");
+            perror("[ARCHIVIO] Errore nella lettura della lunghezza della sequenza di byte\n");
             break;
         }
+
+        printf("[ARCHIVIO] Dimensione della sequenza di byte %d\n", size);
 
         //realloco il buffer con la dimensione giusta
         input_buffer = realloc(input_buffer, (size+1) * sizeof(char));
@@ -321,8 +343,8 @@ void *capo_scrittore_body(void *arg){
             break;
         }
         
-        if(bytes_letti != size * sizeof(char)){
-            perror("[ARCHIVIO CAPOSC BYTES LETTI]Errore nella lettura della sequenza di byte\n");
+        if(bytes_letti != size ){
+            perror("[ARCHIVIO] Errore nella lettura della sequenza di byte\n");
         }
 
         //aggiungo 0 alla fine della stringa 
@@ -352,10 +374,7 @@ void *capo_scrittore_body(void *arg){
 
     fprintf(stdout, "[ARCHIVIO] CAPO SCRITTORE HA SCRITTO %d PAROLE\n", *(cs->np));
 
-    //fprintf(stdout, "\n[ARCHIVIO] Prima di terminare gli scrittori l'indice è %d\n\n", *(cs->index)%PC_buffer_len);
-    
-    //termino gli scrittori aggiungendo null nel buffer
-    
+    //termino gli scrittori aggiungendo null nel buffer    
     for(int i=0; i<*(cs->numero_scrittori); i++){
         xsem_wait(cs->sem_free_slots, __LINE__, __FILE__);
         cs->buffsc[*(cs->index) % PC_buffer_len] = NULL;
@@ -405,10 +424,10 @@ void *lettore_body(void *arg){
         //devo poi contare le occorenze della parola nella hash table
         if(parola!=NULL){
             read_lock(rw);
+            printf("--------------------Ci arrivoooooooooo\n");
             int occorenze = conta(parola);
-            fprintf(dl->filelog, "[ARCHIVIO]  Parola : %s, Occorrenze : %d\n", parola, occorenze);
+            fprintf(dl->filelog, "%s %d\n", parola, occorenze);
             read_unlock(rw);
-
         }
 
         //ho liberato un posto nel buffer e quindi faccio la post
@@ -469,21 +488,22 @@ void *capo_lettore_body(void *arg){
     while(true){
         //leggo la dimensione della sequenza di bytes
         bytes_letti = read(fd, &size, sizeof(int));
-        printf("[ARCHIVIO CAPOLET] ho letto la dimensione della sequenza di byte dalla FIFO capolet : %d\n", size);
-
+        size = ntohl(size);
+        printf("[ARCHIVIO] ho letto la dimensione della sequenza di byte dalla FIFO capolet : %d\n", size);
         if(bytes_letti==0){
             printf("[ARCHIVIO] FIFO capolet chiusa in lettura\n");
             break;
         }
         if(bytes_letti != sizeof(int)){
-            printf("[ARCHIVIO CAPOLET LUNGHEZZA] Errore nella lettura della lunghezza della sequenza di byte: %ld \n", bytes_letti);
+            printf("[ARCHIVIO ERRORE 1] Errore nella lettura della lunghezza della sequenza di byte: %ld \n", bytes_letti);
             break;
         }
+
 
         //realloco il buffer con la dimensione giusta
         input_buffer = realloc(input_buffer, (size+1) * sizeof(char));
         if(input_buffer==NULL){
-            xtermina("[ARCHIVIO REALLOC] Errore allocazione memoria\n", __LINE__, __FILE__);
+            xtermina("[ARCHIVIO] Errore allocazione memoria\n", __LINE__, __FILE__);
         }
 
         //leggo la sequenza di n byte
@@ -494,12 +514,12 @@ void *capo_lettore_body(void *arg){
             break;
         }
         if(bytes_letti != size){
-            printf("[ARCHIVIO CAPOLET BYTES LETTI]Errore nella lettura della sequenza di byte: ho letto %ld byte al posto di %d\n", bytes_letti, size);
+            printf("[ARCHIVIO ERRORE 2] nella lettura della sequenza di byte: ho letto %ld byte al posto di %d\n", bytes_letti, size);
         }
 
         //aggiungo 0 alla fine della stringa
         input_buffer[bytes_letti] = '\0' ;
-        printf("[ARCHIVIO CAPOLET] ho letto la sequenza di byte dalla FIFO capolet : %s\n", input_buffer);
+        printf("[ARCHIVIO] ho letto la sequenza di byte dalla FIFO capolet : %s\n", input_buffer);
 
 
         //tokenizzo la stringa
@@ -525,10 +545,7 @@ void *capo_lettore_body(void *arg){
     }
    
     fprintf(stdout, "[ARCHIVIO] CAPO LETTORE HA SCRITTO %d PAROLE\n", *(cl->np));
-    
 
-    //fprintf(stdout, "\n[ARCHIVIO] Prima di terminare i lettori l'indice è %d\n\n", *(cl->index)%PC_buffer_len);
-    
     //termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
@@ -582,11 +599,10 @@ void *gestore_segnali(void *arg){
             int num_stringhe = numero_stringhe();
             //stampo su stdout il numero di stringhe presenti nella hash table
             fprintf(stdout, "[SIGTERM] Numero di stringhe distinte nella ht -> %d\n", num_stringhe);
-
-            //dealloco tutta la hash table
-            distruggi_hash();
-            hdestroy();
+            stampa_lista_entry();
             pthread_exit(NULL);
+            printf("[SIGTERM] NON DEVE ARRIVARE QUIIIII Thread gestore segnali terminato\n");
+
         }
 
         if(segnale == SIGINT){
@@ -602,7 +618,8 @@ void *gestore_segnali(void *arg){
             clear_hash();
             int ht = hcreate(Num_elem);
             if(ht == 0)
-                xtermina("[MALLOC] Errore allocazione hashtable\n", __LINE__, __FILE__);
+                xtermina("[ARCHIVIO] Errore allocazione hashtable\n", __LINE__, __FILE__);
+            printf("[SIGUSR1] Hashtable ripristinata\n");
             continue;
         }
     }

@@ -1,30 +1,29 @@
 PRINT_ENABLE = True
 
-def PrintServer(str,WorningLevel =0):
-    level = GetWorningLevel(WorningLevel)
-    print(f"[SERVER]{level} "+str)
+def print_server(str,warning_level = 0):
+    level = get_warning_level(warning_level)
+    print(f"[SERVER]{level} " + str)
 
 
-def PrintClient(str,WorningLevel =0):
-    level = GetWorningLevel(WorningLevel)
-    print(f"[CLIENT2]{level} "+str)
+def print_client(str,warning_level =0):
+    level = get_warning_level(warning_level)
+    print(f"[CLIENT2]{level} " + str)
 
 
-def NormalPrint(str):
+def normal_print(str):
     if(PRINT_ENABLE):
         print(str)  
 
 
-def GetWorningLevel(WorningLevel): 
-    if WorningLevel > 3:
-        WorningLevel = 3
-    if WorningLevel == 0:
+def get_warning_level(warning_level): 
+    if warning_level > 3:
+        warning_level = 3
+    if warning_level == 0:
         return ""
-    if WorningLevel == 1:
+    if warning_level == 1:
         return "[INFO]"
-    if WorningLevel == 2:
+    if warning_level == 2:
         return "[WARNING]"
-    if WorningLevel == 3:
+    if warning_level == 3:
         return "[ERROR]"
-    
     

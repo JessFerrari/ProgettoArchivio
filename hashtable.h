@@ -18,8 +18,6 @@ typedef struct {
   ENTRY *next;  
 } coppia;
 
-
-
 void read_lock(rwHT *z);
 void read_unlock(rwHT *z);
 void write_lock(rwHT *z);

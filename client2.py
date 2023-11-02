@@ -1,5 +1,12 @@
 #! /usr/bin/env python3
-import socket, struct, threading
+import Log
+import socket, sys, struct, threading
+
+#Accetta sulla linea di comando il nome di uno o più file di testo
+#Per ogni file deve essere creato un thread che si collega al server 
+#Ivia una alla volte le linee del file come sequenze di byte, inviando prima la rispettiva lunghezza
+#Viene usata la funzione recv_all mostrata a lezione per ricevere alla fine il numero di sequenze che il server ha ricevuto
+#Mi devo connettere al
 
 def recv_all(conn,n):
     """Funzione mostrata a lezione.
@@ -14,68 +21,66 @@ def recv_all(conn,n):
             return 0
         chunks += chunk
         bytes_recd = bytes_recd + len(chunk)
-    return chunks      
+    return chunks 
 
-def client2(file_path) : 
-    #viene aperto il file da cui si vuole leggere
-    with open(file_path, 'rb') as file:
-        #viene creato un socket TCP
+def sendfile(file):
+    Log.print_client(f"Arrivo nella funzione per gestire il {file}")
+    with open(file, 'r') as f:
+        #Creo la connessione
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #viene assegnato un indirizzo ip e un numero di porta
-        server_address = ('localhost', 55531)
-        #connessione
+        #Specifico l'idirizzo IP e la porta del server
+        server_address = ('127.0.0.1', 55531)
+        #Connetto al server
         client_socket.connect(server_address)
-        #viene identificato il client inviando 2
-        client_socket.sendall(("2").encode())
-
-
-        #vengono lette tutte le linee del file
-        lines = file.readlines()
-        #variabile per mantenere la lunghezza della sequenza
-        length = 0
-
-        #vengono inviate le linee lette al server
+        #Invio al server l'identificativo per la connessione di tipo B, quindi invio 2
+        client_socket.sendall(b'2')
+        #variabile per la lunghezza della linea
+        lenght = 0
+        #leggo tutte le linee del file
+        lines = f.readlines()
         for line in lines :
-            #vengono rimossi gli spazi bianchi
             line = line.strip()
-            if len(line) > 2048:
-                print("[Client 2] linea troppo lunga")
+            lenght = len(line)
+            Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
+            if(lenght > 2048):
+                Log.print_client(f"Linea troppo lunga: {line}")
                 continue
-            elif line : 
-                client_socket.sendall(struct.pack('!i', len(line)) )
-                client_socket.sendall(line.encode())
             else:
-                print("[Client 2] linea vuota")
-                continue
+                #Invio la lunghezza della linea
+                client_socket.sendall(struct.pack('!i', lenght))
+                Log.print_client(f"Invio la lunghezza della linea")
+                #Invio la linea
+                client_socket.sendall(line.encode())
+                Log.print_client(f"Invio la linea")
+        #segnalo che non ci sono altre sequenze inviando una sequenza lunga 0
+        client_socket.sendall(b'\x00\x00\x00\x00')
+        #ricevo del server il numero di sequenze ricevute
+        nseq_bytes = recv_all(client_socket, 4)
+        nseq = struct.unpack('i', nseq_bytes[:4])[0]
+        Log.print_client(f"Il server ha ricevuto {nseq} sequenze")
+        #chiudo la connessione
+        client_socket.close()
 
-            #viene inviata una sequenza lunga 0 per indicare che non ci sono altre sequenze da inviare
-            client_socket.sendall(b'\x00\x00\x00\x00')
-
-            #viene ricevuto dal server il numero di sequenze inviate
-            length_byte = client_socket.recv(4)
-            num_seq = struct.unpack('!i', length_byte[:4])[0]
-            print(f"[CLIENT2] Totale sequenze ricevute dal server -> {num_seq}")
-            
-            #si chiude la connessione
-            client_socket.close()
-        
-if __name__ == "__main__":
-    import sys
-
-    #si controlla che ci sia almeno il nome di un file come argomento
+if __name__ == '__main__':
+    #Controllo che sono stati passati i file (almeno 1)
     if len(sys.argv) < 2:
-        print("Usage: python3 client2.py <file1> ... <fileN>")
+        Log.print_client(f"USO: {sys.argv[0]} <file1> [<file2> ...]")
         sys.exit(1)
     
-    #si ottengono i nomi dei file dalla linea di comando e si fa partire un thread per ogni file
+    #Ottengo i nomi dei file dalla linea di comando
+    files = sys.argv[1:]
+
+    #Creo un thread per ogni file ricevuto da linea di comando
     threads = []
-    for file in sys.argv[1:]:
-        t = threading.Thread(target=client2, args=(file,))
-        threads.append(t)
-        t.start()
+    for file in files:
+        thread = threading.Thread(target=sendfile, args=(file,))
+        Log.print_client(f"Avvio di un thread di connessione per il file {file}")
+        threads.append(thread)
+        thread.start()
     
-    #si attende che tutti i thread terminino
-    for t in threads:
-        t.join()
+    #Attendo il completamento di tutti i thread
+    for thread in threads:
+        thread.join()
     
-    print("[Client 2] terminato")
+    #FINE
+    Log.normal_print(f"TERMINATO")

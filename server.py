@@ -19,46 +19,44 @@ pipe_lock = threading.Lock()
 #Se viene inviato il segnale SIGINT il aserver termina l'esecuzione chiudendo il socket, cancellandoo le fifo e inviando il segnale sigterm al programma archivio
 
 def recv_all(conn,n):
-    """
-    Funzione mostrata a lezione, riceve esattamente n byte dal socket conn e li restituisce
+  """Funzione mostrata a lezione, riceve esattamente n byte dal socket conn e li restituisce
     Il tipo restituto è "bytes": una sequenza immutabile di valori 0-255
     Questa funzione è analoga alla readn che abbiamo visto nel C
     conn : socket
-    n : numero di byte  
-    """
-    chunks = b''
-    bytes_recd = 0
-    while bytes_recd < n:
-        chunk = conn.recv(min(n - bytes_recd, 2048))
-        if len(chunk) == 0:
-            return 0
-        chunks += chunk
-        bytes_recd = bytes_recd + len(chunk)
-    return chunks  
+    n : numero di byte"""
+  chunks = b''
+  bytes_recd = 0
+  while bytes_recd < n:
+    chunk = conn.recv(min(n - bytes_recd, 2048))
+    if len(chunk) == 0:
+      return 0
+    chunks += chunk
+    bytes_recd = bytes_recd + len(chunk)
+  return chunks  
 
 def write_in_pipe(pipe, size, data):
-    '''Funzione per scrivere in una pipe.
+    """Funzione per scrivere in una pipe.
     pipe : pipe
     size : numero di byte della sequenza
     data : sequenza
-    '''
+    """
     with pipe_lock:
         try:
             if isinstance(size, bytes):
                 os.write(pipe, size)
-                Log.PrintServer(f"Ho scritto la lunghezza nella pipe {pipe}")
+                Log.print_server(f"Ho scritto la lunghezza nella pipe {pipe}")
             else:
-                Log.PrintServer(f"Errore: size non è di tipo bytes",3)
+                Log.print_server(f"Errore: size non è di tipo bytes",3)
         except (IOError, OSError) as e:
-            Log.PrintServer(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
+            Log.print_server(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
         try:
             if isinstance(data, bytes):
                 os.write(pipe, data)
-                Log.PrintServer(f"Ho scritto la sequenza di byte nella pipe {pipe}")
+                Log.print_server(f"Ho scritto la sequenza di byte nella pipe {pipe}")
             else:
-                Log.PrintServer(f"Errore: data non è di tipo bytes",3)
+                Log.print_server(f"Errore: data non è di tipo bytes",3)
         except (IOError, OSError) as e:
-            Log.PrintServer(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
+            Log.print_server(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
 
             
 
@@ -72,25 +70,28 @@ def gest_connessione(conn, addr, capolet, caposc):
     caposc : pipe caposc
     '''
     #Il client mi ha mandato una richiesta
-    Log.PrintServer(f"mi ha contattato il client{addr}")
+    Log.print_server(f"mi ha contattato il client{addr}")
     #Ricevo un byte che mi indica se il client è di tipo 1 o 2
     client_type = recv_all(conn, 1).decode("utf-8")
-    Log.PrintServer(f"Il client{addr} ha invuiato la richiesta di connessione di tipo {client_type}")
+    Log.print_server(f"Il client{addr} ha invuiato la richiesta di connessione di tipo {client_type}")
     #Il client è di tipo 1
     if client_type == "1":
         #Instauro una connessione di tipo A
-        Log.PrintServer(f"Instaurata una connessione di tipo A con Client {addr} di tipo 1")
+        Log.print_server(f"Instaurata una connessione di tipo A con Client {addr} di tipo 1")
         bytes_written_capolet = 0
+    
         #Ricevo la lunghezza della sequenza di byte che sto per ricevere (4 bytes)
         length_in_bytes = recv_all(conn, 4)
+        Log.print_server(f"Ricevuta la lunghezza della sequenza di byte {length_in_bytes}")
         #Trasformo la sequenza di byte in un intero
-        length = struct.unpack('i', length_in_bytes[:4])[0]
+        length = struct.unpack('!i', length_in_bytes[:4])[0]
+        Log.print_server(f"La lunghezza della sequenza di byte {length}")
         #Ricevo la sequenza di byte
         data = recv_all(conn, length)
-        #Scrivo la lunghezza della sequenza di byte nella pipe capolet
-        os.write(capolet, length_in_bytes)
-        #Scrivo la sequenza di byte
-        os.write(capolet, data)
+        Log.print_server(f"Ricevuta la sequenza di byte {data.decode('utf-8')}")
+        #Invio la lunghezza della sequenza di byte
+        write_in_pipe(capolet, length_in_bytes, data)
+            
         bytes_written_capolet = bytes_written_capolet + length + 4
         #Registro le informazioni dei bytes scritti nella pipe capolet su file di log
         logging.info(f"Connessione di tipo A - byte scritti su 'capolet' -> {bytes_written_capolet}")
@@ -100,7 +101,7 @@ def gest_connessione(conn, addr, capolet, caposc):
         #il client è di tipo 2
     elif client_type == "2":
         #Instauro una connessione di tipo B
-        Log.PrintServer(f"Instaurata una connessione di tipo B con Client {addr} di tipo 2")
+        Log.print_server(f"Instaurata una connessione di tipo B con Client {addr} di tipo 2")
         bytes_written_caposc = 0
         tot_recived_seq = 0
         while True:
@@ -108,16 +109,16 @@ def gest_connessione(conn, addr, capolet, caposc):
             length_in_bytes = recv_all(conn, 4)
             #se è 0 allora il client ha finito la connessione
             if length_in_bytes == b'\x00\x00\x00\x00':
-                Log.PrintServer(f"Ho ricevuto una sequenza di 0 bytes. Il client{addr} ha finito la connessione")
+                Log.print_server(f"Ho ricevuto una sequenza di 0 bytes. Il client{addr} ha finito la connessione")
                 break
-            Log.PrintServer(f"Ricevuta lunghezza {length_in_bytes}")
+            Log.print_server(f"Ricevuta lunghezza {length_in_bytes}")
             #Trasformo la sequenza di byte in un intero
             length = struct.unpack('!i', length_in_bytes[:4])[0]
-            Log.PrintServer(f"La lunghezza ricevuta è {length} bytes")
+            Log.print_server(f"La lunghezza ricevuta è {length} bytes")
             
             #Ricevo la sequenza di byte
             data = recv_all(conn, length)
-            Log.PrintServer(f"Ricevuta la sequenza di byte {data}")
+            Log.print_server(f"Ricevuta la sequenza di byte {data}")
 
             #Scrivo nella pipe caposc la dimensione e la sequenza di byte
             write_in_pipe(caposc, length_in_bytes, data)
@@ -139,11 +140,15 @@ Funzione per terminare il server con il comando CTRL+C.
     signum : rappresenta il numero dell segnale.
     frame : rappresenta il frame corrente dello stack.
 """
-    Log.NormalPrint("[...TERMINAZIONE SERVER...]") 
+    Log.normal_print("[...TERMINAZIONE SERVER...]") 
      
     # Chiude il socket del server
-    server_socket.shutdown(socket.SHUT_RDWR)
-    server_socket.close()
+    if server_socket is not None:
+        server_socket.shutdown(socket.SHUT_RDWR)
+        server_socket.close()
+    #else:
+    #    Log.normal_print("<[SERVER NON INIZIALIZZATO]>")
+    
     
     # Chiudo le pipe caposc e capolet
     if os.path.exists("caposc"):
@@ -152,24 +157,27 @@ Funzione per terminare il server con il comando CTRL+C.
         os.unlink("capolet")
     
     # Invia il segnale SIGTERM al processo archivio
-    #archivio_subprocess.send_signal(signal.SIGTERM)
+    archivio_subprocess.send_signal(signal.SIGTERM)
 
-    Log.NormalPrint("<[SERVER TERMINATO]>")
+    Log.normal_print("<[SERVER TERMINATO]>")
     exit()
 
-'''def archivio_normale(readers, writers):
+
+
+def archivio_normale(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C
-    archivio_subprocess = subprocess.Popen(['./archivio.out', str(readers), str(writers)])
-    Log.PrintServer(f"Lancio il processo archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori")
+    archivio_subprocess = subprocess.Popen(['./archivio', str(readers), str(writers)])
+    Log.print_server(f"Lancio il processo archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori")
+
 
 # Funzione che lancia archivio con valgrind, passando il numero di lettori e scrittori e i parametri che il professore ha utilizzato in manager.py
 def archivio_valgrind(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C passando anche valgrind
-    archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio.out", str(readers), str(writers)])
-    Log.PrintServer(f"Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind")
-'''
+    archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio", str(readers), str(writers)])
+    Log.print_server(f"Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind")
+
 
 def mainServer(numMaxThreads, writers, readers, valgrind):
     '''
@@ -185,37 +193,44 @@ def mainServer(numMaxThreads, writers, readers, valgrind):
 
     #creo il socket del server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if server_socket is None:
+        Log.print_server("Errore durante la creazione del socket del server", 3)
+        exit(1)  # Esce dal programma in caso di errore
+
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     server_socket.bind((host, port))
+
     server_socket.listen(numMaxThreads)
-    Log.PrintServer(f"Server in ascolto su {host}:{port}")
+
+    Log.print_server(f"Server in ascolto su {host}:{port}")
 
     #creo il threadpool per gestire i client
     executor = ThreadPoolExecutor(max_workers=numMaxThreads)
-    Log.PrintServer(f"threadpool in creato con {numMaxThreads} thread")
+    Log.print_server(f"threadpool in creato con {numMaxThreads} thread")
 
     #inizializzo le pipes
     if not os.path.exists("capolet"):
         os.mkfifo("capolet", 0o0666)
-        Log.PrintServer(f"pipe capolet creato")
+        Log.print_server(f"pipe capolet creato")
     if not os.path.exists("caposc"):
         os.mkfifo("caposc", 0o0666)
-        Log.PrintServer(f"pipe caposc creato")
+        Log.print_server(f"pipe caposc creato")
 
     #faccio partire archivio
-    #if valgrind:
-    #    archivio_valgrind(readers, writers)
-    #else:
-    #    archivio_normale(readers, writers)
+    if valgrind:
+        archivio_valgrind(readers, writers)
+    else:
+        archivio_normale(readers, writers)
 
     #apro le pipes
     try:
         capolet = os.open("capolet", os.O_WRONLY)
-        Log.PrintServer(f"pipe capolet aperta in scrittura")
+        Log.print_server(f"pipe capolet aperta in scrittura")
         caposc = os.open("caposc", os.O_WRONLY)
-        Log.PrintServer(f"pipe caposc aperta in scrittura")
+        Log.print_server(f"pipe caposc aperta in scrittura")
     except Exception as e:
-        Log.PrintServer(f"Errore durante l'apertura delle pipes: {e}")
+        Log.print_server(f"Errore durante l'apertura delle pipes: {e}")
 
     #configuro il file di log
     logging.basicConfig(filename="server.log", level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -237,5 +252,3 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--valgrind", action="store_true", help="valgrind")
     args = parser.parse_args()
     mainServer(args.numMaxThreads, args.readers, args.writers, args.valgrind)
-
-    

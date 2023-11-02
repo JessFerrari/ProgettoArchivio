@@ -83,7 +83,7 @@ Tutti i segnali ricevuti dal programma `archivio` devono essere  gestiti da ques
 
 * Quando viene ricevuto il segnale `SIGTERM` il thread deve attendere la terminazione dei thread "capo lettore" e "capo scrittore"; successivamente deve stampare su `stdout` il numero totale di stringhe distinte contenute dentro la tabella hash, dellocare la tabella hash (e il suo contenuto per il **progetto completo**, vedere sotto) e far terminare il programma. Questa è l'unica modalità "pulita" con cui deve terminare il programma. Durante queste operazioni di terminazione non devono essere gestiti ulteriori segnali. 
 
-* **[Solo per il progetto completo]**  Quando viene ricevuto un segnale `SIGUSR1` il thread gestore deve ottenere l'accesso in scrittura alla tabella hash, deallocare tutti i dati memorizzati nella tabella, e chiamare le funzioni `hdestroy` seguita da `hcreate(Num_elem)`. In pratica questo corrisponde a cancellare tutti i vecchi dati dalla tabella e ripartire con una tabella vuota.
+* **[Solo per il progetto completo]**  Quando viene rice vuto un segnale `SIGUSR1` il thread gestore deve ottenere l'accesso in scrittura alla tabella hash, deallocare tutti i dati memorizzati nella tabella, e chiamare le funzioni `hdestroy` seguita da `hcreate(Num_elem)`. In pratica questo corrisponde a cancellare tutti i vecchi dati dalla tabella e ripartire con una tabella vuota.
 
 
 ### Deallocazione della memoria

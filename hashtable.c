@@ -54,11 +54,11 @@ void write_unlock(rwHT *z) {
 ENTRY *crea_entry(char *s, int n) {
   ENTRY *e = malloc(sizeof(ENTRY));
   if (e == NULL)
-    xtermina("[ARCHIVIO] Errore 1 malloc crea_entry", QUI);
+    xtermina("[ARCHIVIO] Errore ht 1 malloc crea_entry", QUI);
   e->key = strdup(s); // Salva copia di s
   e->data = malloc(sizeof(coppia));
   if (e->key == NULL || e->data == NULL)
-    xtermina("[ARCHIVIO] Errore 2 malloc crea_entry", QUI);
+    xtermina("[ARCHIVIO] Errore ht 2 malloc crea_entry", QUI);
   // Inizializzo coppia
   coppia *c = (coppia *)e->data; // Cast obbligatorio
   c->valore = n;
@@ -104,6 +104,7 @@ void aggiungi(char *s) {
     c->valore += 1;
     distruggi_entry(e); // Questa non la devo memorizzare
   }
+
 }
 
 int conta(char *s) {
