@@ -9,7 +9,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
-#include <sys/shm.h>
 #include <semaphore.h>
 #include <sys/mman.h>
 #include <sys/stat.h>        /* For mode constants */
@@ -26,19 +25,6 @@ FILE *xfopen(const char *path, const char *mode, int linea, char *file);
 // operazioni su file descriptors
 void xclose(int fd, int linea, char *file);
 
-// operazioni su processi
-pid_t xfork(int linea, char *file);
-pid_t xwait(int *status, int linea, char *file);
-// pipes
-int xpipe(int pipefd[2], int linea, char *file);
-
-
-// memoria condivisa POSIX
-int xshm_open(const char *name, int oflag, mode_t mode, int linea, char *file);
-int xshm_unlink(const char *name, int linea, char *file);
-int xftruncate(int fd, off_t length, int linea, char *file);
-void *simple_mmap(size_t length, int fd, int linea, char *file);
-int xmunmap(void *addr, size_t length, int linea, char *file);
 
 // semafori POSIX
 sem_t *xsem_open(const char *name, int oflag, mode_t mode, unsigned int value, int linea, char *file);
