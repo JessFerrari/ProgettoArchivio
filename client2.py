@@ -24,42 +24,49 @@ def recv_all(conn,n):
     return chunks 
 
 def sendfile(file):
-    Log.print_client(f"Arrivo nella funzione per gestire il {file}")
-    with open(file, 'r') as f:
-        #Creo la connessione
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #Specifico l'idirizzo IP e la porta del server
-        server_address = ('127.0.0.1', 55531)
-        #Connetto al server
-        client_socket.connect(server_address)
-        #Invio al server l'identificativo per la connessione di tipo B, quindi invio 2
-        client_socket.sendall(b'2')
-        #variabile per la lunghezza della linea
-        lenght = 0
-        #leggo tutte le linee del file
-        lines = f.readlines()
-        for line in lines :
-            line = line.strip()
-            lenght = len(line)
-            Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
-            if(lenght > 2048):
-                Log.print_client(f"Linea troppo lunga: {line}")
-                continue
-            else:
-                #Invio la lunghezza della linea
-                client_socket.sendall(struct.pack('!i', lenght))
-                Log.print_client(f"Invio la lunghezza della linea")
-                #Invio la linea
-                client_socket.sendall(line.encode())
-                Log.print_client(f"Invio la linea")
-        #segnalo che non ci sono altre sequenze inviando una sequenza lunga 0
-        client_socket.sendall(b'\x00\x00\x00\x00')
-        #ricevo del server il numero di sequenze ricevute
-        nseq_bytes = recv_all(client_socket, 4)
-        nseq = struct.unpack('i', nseq_bytes[:4])[0]
-        Log.print_client(f"Il server ha ricevuto {nseq} sequenze")
-        #chiudo la connessione
-        client_socket.close()
+    try:
+        Log.print_client(f"Arrivo nella funzione per gestire il {file}")
+        with open(file, 'r') as f:
+            #Creo la connessione
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #Specifico l'idirizzo IP e la porta del server
+            server_address = ('127.0.0.1', 55531)
+            #Connetto al server
+            client_socket.connect(server_address)
+            #Invio al server l'identificativo per la connessione di tipo B, quindi invio 2
+            client_socket.sendall(b'2')
+            #variabile per la lunghezza della linea
+            lenght = 0
+            #leggo tutte le linee del file
+            lines = f.readlines()
+            for line in lines :
+                line = line.strip()
+                lenght = len(line)
+                Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
+                if(lenght > 2048):
+                    Log.print_client(f"Linea troppo lunga: {line}")
+                    continue
+                else:
+                    #Invio la lunghezza della linea
+                    client_socket.sendall(struct.pack('!i', lenght))
+                    Log.print_client(f"Invio la lunghezza della linea")
+                    #Invio la linea
+                    client_socket.sendall(line.encode())
+                    Log.print_client(f"Invio la linea")
+            #segnalo che non ci sono altre sequenze inviando una sequenza lunga 0
+            client_socket.sendall(b'\x00\x00\x00\x00')
+            #ricevo del server il numero di sequenze ricevute
+            nseq_bytes = recv_all(client_socket, 4)
+            nseq = struct.unpack('i', nseq_bytes[:4])[0]
+            Log.print_client(f"Il server ha ricevuto {nseq} sequenze")
+            #chiudo la connessione
+            client_socket.close()
+    except ConnectionError as e:
+        print(f"Errore di connessione: {e}")
+    except FileNotFoundError as e:
+        print(f"File non trovato: {e}")
+    except Exception as e:
+        print(f"Errore non gestito: {e}")
 
 if __name__ == '__main__':
     #Controllo che sono stati passati i file (almeno 1)

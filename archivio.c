@@ -197,27 +197,20 @@ int main (int argc, char *argv[]){
     }
 
     distruggi_hash();
-    printf("[ARCHIVIO] Hashtable distrutta\n");
 
     fclose(lettoriLog);
-    printf("[ARCHIVIO] Loglettori chiuso\n");
-    xpthread_mutex_destroy(&mutexHT, QUI);
-    printf("[ARCHIVIO] Mutex HT distrutto\n");
-    xpthread_cond_destroy(&condHT, QUI);
-    printf("[ARCHIVIO] Cond HT distrutto\n");
-    xsem_destroy(&sem_data_items_sc, QUI);
-    printf("[ARCHIVIO] Sem data items scrittori distrutto\n");
-    xsem_destroy(&sem_free_slots_sc, QUI);
-    printf("[ARCHIVIO] Sem free slots scrittori distrutto\n");
-    xsem_destroy(&sem_data_items_let, QUI);
-    printf("[ARCHIVIO] Sem data items lettori distrutto\n");
-    xsem_destroy(&sem_free_slots_let, QUI);
-    printf("[ARCHIVIO] Sem free slots lettori distrutto\n");
 
+    xpthread_mutex_destroy(&mutexHT, QUI);
+    xpthread_cond_destroy(&condHT, QUI);
+
+    xsem_destroy(&sem_data_items_sc, QUI);
+    xsem_destroy(&sem_free_slots_sc, QUI);
+    xsem_destroy(&sem_data_items_let, QUI);
+    xsem_destroy(&sem_free_slots_let, QUI);
+    
     free(buffsc);
-    printf("[ARCHIVIO] BUFFSC distrutto\n");
     free(bufflet);
-    printf("[ARCHIVIO] BUFFLET distrutto\n");
+    
     return 0;
 }
 
@@ -369,7 +362,6 @@ void *capo_scrittore_body(void *arg){
         
             token = strtok(NULL, ".,:; \n\r\t");
         }
-        input_buffer = realloc(input_buffer, 2*sizeof(char));
     }
 
     fprintf(stdout, "[ARCHIVIO] CAPO SCRITTORE HA SCRITTO %d PAROLE\n", *(cs->np));
@@ -538,10 +530,8 @@ void *capo_lettore_body(void *arg){
             *(cl->np) += 1;
             //faccio la post sul sem dei dati in quanto ne ho aggiunto uno
             xsem_post(cl->sem_data_items, __LINE__, __FILE__);
-
             token = strtok(NULL, ".,:; \n\r\t");
         }
-        input_buffer = realloc(input_buffer, 2);
     }
    
     fprintf(stdout, "[ARCHIVIO] CAPO LETTORE HA SCRITTO %d PAROLE\n", *(cl->np));
