@@ -40,11 +40,15 @@ def sendfile(file):
             #leggo tutte le linee del file
             lines = f.readlines()
             for line in lines :
+                Log.print_client(f"Linea da leggere: {line}", 2)
                 line = line.strip()
                 lenght = len(line)
                 Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
-                if(lenght > 2048):
+                if(lenght > 2048 ):
                     Log.print_client(f"Linea troppo lunga: {line}")
+                    continue
+                if(lenght == 0):
+                    #Log.print_client(f"Linea vuota: {line}")
                     continue
                 else:
                     #Invio la lunghezza della linea
@@ -53,6 +57,7 @@ def sendfile(file):
                     #Invio la linea
                     client_socket.sendall(line.encode())
                     Log.print_client(f"Invio la linea")
+                
             #segnalo che non ci sono altre sequenze inviando una sequenza lunga 0
             client_socket.sendall(b'\x00\x00\x00\x00')
             #ricevo del server il numero di sequenze ricevute
