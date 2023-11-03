@@ -58,7 +58,6 @@ int main(int argc, char *argv[]) {
     int tmp;
 
     while((bytes_read = getline(&line, &length, f)) != -1){
-        printf("[CLIENT1] ho letto la linea %s di dimensione %ld\n", line, bytes_read);
         //se la linea è vuota la salto
         if (strlen(line) == 1 && line[0] == '\n') {
             printf("[CLIENT1] Linea vuota, la salto\n");
@@ -94,26 +93,21 @@ int main(int argc, char *argv[]) {
         e = writen(client_socket, "1", 1);
         if(e == -1){
             xtermina("[CLIENT1] Errore nella scrittura del tipo di connessione\n", __LINE__, __FILE__);
-        }else {
-            printf("[CLIENT1] Connessione effettuata\n");
         }
-        
+        //Il client si è connesso 
+
         //mando la lunghezza della sequenza
         tmp = htonl(strlen(line));
         e = writen(client_socket, &tmp, sizeof(tmp));
         if(e == -1){
             xtermina("[CLIENT1] Errore nella scrittura della lunghezza della linea\n", __LINE__, __FILE__);
-        } else {
-            printf("[CLIENT1] Lunghezza della sequenza %s mandata\n", line);
-        }
+        } 
 
         //mando la sequenza
         e = writen(client_socket, line, strlen(line));
         if(e == -1){
             xtermina("[CLIENT1] Errore nella scrittura della linea\n", __LINE__, __FILE__);
-        } else {
-            printf("[CLIENT1] Sequenza %s mandata \n", line);
-        }
+        } 
 
         //chiudo la connessione
         xclose(client_socket, __LINE__, __FILE__);
@@ -121,5 +115,6 @@ int main(int argc, char *argv[]) {
 
     free(line);
     fclose(f);
+    printf("CLIENT1 COMPLETATO\n");
     return 0;
 }

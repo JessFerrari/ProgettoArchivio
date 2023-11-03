@@ -25,7 +25,7 @@ def recv_all(conn,n):
 
 def sendfile(file):
     try:
-        Log.print_client(f"Arrivo nella funzione per gestire il {file}")
+        #Log.print_client(f"Arrivo nella funzione per gestire il {file}")
         with open(file, 'r') as f:
             #Creo la connessione
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,12 +40,12 @@ def sendfile(file):
             #leggo tutte le linee del file
             lines = f.readlines()
             for line in lines :
-                Log.print_client(f"Linea da leggere: {line}", 2)
+                #Log.print_client(f"Linea da leggere: {line}", 2)
                 line = line.strip()
                 lenght = len(line)
-                Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
+                #Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
                 if(lenght > 2048 ):
-                    Log.print_client(f"Linea troppo lunga: {line}")
+                #    Log.print_client(f"Linea troppo lunga: {line}")
                     continue
                 if(lenght == 0):
                     #Log.print_client(f"Linea vuota: {line}")
@@ -53,10 +53,10 @@ def sendfile(file):
                 else:
                     #Invio la lunghezza della linea
                     client_socket.sendall(struct.pack('!i', lenght))
-                    Log.print_client(f"Invio la lunghezza della linea")
+                    #Log.print_client(f"Invio la lunghezza della linea")
                     #Invio la linea
                     client_socket.sendall(line.encode())
-                    Log.print_client(f"Invio la linea")
+                    #Log.print_client(f"Invio la linea")
                 
             #segnalo che non ci sono altre sequenze inviando una sequenza lunga 0
             client_socket.sendall(b'\x00\x00\x00\x00')
@@ -67,11 +67,11 @@ def sendfile(file):
             #chiudo la connessione
             client_socket.close()
     except ConnectionError as e:
-        print(f"Errore di connessione: {e}")
+        Log.print_client(f"Errore di connessione: {e}", 3)
     except FileNotFoundError as e:
-        print(f"File non trovato: {e}")
+        Log.print_client(f"File non trovato: {e}", 3)
     except Exception as e:
-        print(f"Errore non gestito: {e}")
+        Log.print_client(f"Errore non gestito: {e}", 3)
 
 if __name__ == '__main__':
     #Controllo che sono stati passati i file (almeno 1)
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     threads = []
     for file in files:
         thread = threading.Thread(target=sendfile, args=(file,))
-        Log.print_client(f"Avvio di un thread di connessione per il file {file}")
+        #Log.print_client(f"Avvio di un thread di connessione per il file {file}")
         threads.append(thread)
         thread.start()
     
@@ -95,4 +95,4 @@ if __name__ == '__main__':
         thread.join()
     
     #FINE
-    Log.normal_print(f"TERMINATO")
+    Log.normal_print(f"CLIENT2 TERMINATO")
