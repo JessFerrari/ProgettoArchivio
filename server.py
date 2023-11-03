@@ -70,10 +70,8 @@ def gest_connessione(conn, addr, capolet, caposc):
     caposc : pipe caposc
     '''
     #Il client mi ha mandato una richiesta
-    #Log.print_server(f"mi ha contattato il client{addr}")
     #Ricevo un byte che mi indica se il client è di tipo 1 o 2
     client_type = recv_all(conn, 1).decode("utf-8")
-    #Log.print_server(f"Il client{addr} ha inviato la richiesta di connessione di tipo {client_type}")
     #Il client è di tipo 1
     if client_type == "1":
         #Instauro una connessione di tipo A
@@ -82,13 +80,10 @@ def gest_connessione(conn, addr, capolet, caposc):
     
         #Ricevo la lunghezza della sequenza di byte che sto per ricevere (4 bytes)
         length_in_bytes = recv_all(conn, 4)
-        #Log.print_server(f"Ricevuta la lunghezza della sequenza di byte {length_in_bytes}")
         #Trasformo la sequenza di byte in un intero
         length = struct.unpack('!i', length_in_bytes[:4])[0]
-        #Log.print_server(f"La lunghezza della sequenza di byte {length}")
         #Ricevo la sequenza di byte
         data = recv_all(conn, length)
-        #Log.print_server(f"Ricevuta la sequenza di byte {data.decode('utf-8')}")
         #Invio la lunghezza della sequenza di byte
         write_in_pipe(capolet, length_in_bytes, data)
             
@@ -109,16 +104,12 @@ def gest_connessione(conn, addr, capolet, caposc):
             length_in_bytes = recv_all(conn, 4)
             #se è 0 allora il client ha finito la connessione
             if length_in_bytes == b'\x00\x00\x00\x00':
-                Log.print_server(f"Ho ricevuto una sequenza di 0 bytes. Il client{addr} ha finito la connessione")
                 break
-            #Log.print_server(f"Ricevuta lunghezza {length_in_bytes}")
             #Trasformo la sequenza di byte in un intero
             length = struct.unpack('!i', length_in_bytes[:4])[0]
-            #Log.print_server(f"La lunghezza ricevuta è {length} bytes")
             
             #Ricevo la sequenza di byte
             data = recv_all(conn, length)
-            #Log.print_server(f"Ricevuta la sequenza di byte {data}")
 
             #Scrivo nella pipe caposc la dimensione e la sequenza di byte
             write_in_pipe(caposc, length_in_bytes, data)
@@ -202,11 +193,9 @@ def mainServer(numMaxThreads, writers, readers, valgrind):
 
     server_socket.listen(numMaxThreads)
 
-    #Log.print_server(f"Server in ascolto su {host}:{port}")
 
     #creo il threadpool per gestire i client
     executor = ThreadPoolExecutor(max_workers=numMaxThreads)
-    #Log.print_server(f"threadpool in creato con {numMaxThreads} thread")
 
     #inizializzo le pipes
     if not os.path.exists("capolet"):

@@ -112,10 +112,8 @@ int conta(char *s) {
   ENTRY *e = crea_entry(s, 1);
   ENTRY *r = hsearch(*e, FIND);
   if (r == NULL) { // Se non c'è la stringa nella ht restituisco 0
-    printf("%s non trovata\n", s);
     tmp = 0;
   } else {
-    printf("%s -> %d\n", s, *((int *)r->data));
     tmp = *((int *)r->data);
   }
   // Distruggo la entry 'creata' perché non va allocata
