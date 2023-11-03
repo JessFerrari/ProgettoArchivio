@@ -49,7 +49,7 @@ Dopo aver clonato il repository usare il comando
 `make`                       # per compilare i file .c
 
 -> Per far partire il server usare il comando  
-`./server.py #numThread -r numReaders -w #numWriters -v`
+`./server.py #numThread -r #numReaders -w #numWriters -v`
 
 -> Per far partire i client usare i comandi    
 `./client2 file file`        # scrive dati su archivio  
