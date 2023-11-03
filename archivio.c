@@ -235,17 +235,13 @@ void *scrittore_body(void *arg){
         //aggiungo la parola nella tabella hash
         if(parola != NULL){
             write_lock(rw);
-            printf("[ARCHIVIO] Thread scrittore %d aggiunge %s\n", ds->id, parola);
             aggiungi(parola);
             free(parola);
-            stampa_lista_entry();
             write_unlock(rw);
         }
 
         //ho liberato un posto nel buffer e quindi faccio la post
         xsem_post(ds->sem_free_slots, __LINE__, __FILE__);
-
-      
     }while(parola != NULL);
     pthread_exit(NULL);
 }
@@ -255,12 +251,9 @@ void *capo_scrittore_body(void *arg){
     
     //recupero i dati
     datiCapoScrittore *cs = (datiCapoScrittore *) arg;
-    fprintf(stdout, "[ARCHIVIO] CAPO SCRITTORE PARTITO\n");
-    
 
     //inizializzo i dati per gli scrittori
     int indexS = 0;
-  
     pthread_mutex_t mutexS = PTHREAD_MUTEX_INITIALIZER;
     pthread_t tS[*(cs->numero_scrittori)];
     datiScrittori ds [*(cs->numero_scrittori)];
@@ -311,8 +304,6 @@ void *capo_scrittore_body(void *arg){
             perror("[ARCHIVIO] Errore nella lettura della lunghezza della sequenza di byte\n");
             break;
         }
-
-        printf("[ARCHIVIO] Dimensione della sequenza di byte %d\n", size);
 
         //realloco il buffer con la dimensione giusta
         input_buffer = realloc(input_buffer, (size+1) * sizeof(char));
@@ -418,11 +409,9 @@ void *capo_lettore_body(void *arg){
 
     //recupero i dati
     datiCapoLettore *cl = (datiCapoLettore *) arg;
-    fprintf(stdout, "[ARCHIVIO] CAPO LETTORE PARTITO\n");
 
     //apro la pipe CAPOLET in lettura
     int fd = open(FIFO_CAPOLET, O_RDONLY);
-    printf("[ARCHIVIO] FIFO capolet aperto in lettura\n");
     if(fd==-1){
         xtermina("[ARCHIVIO] Errore apertura capolet.\n", __LINE__, __FILE__);
     } 
@@ -459,13 +448,12 @@ void *capo_lettore_body(void *arg){
         //leggo la dimensione della sequenza di bytes
         bytes_letti = read(fd, &size, sizeof(int));
         size = ntohl(size);
-        printf("[ARCHIVIO] ho letto la dimensione della sequenza di byte dalla FIFO capolet : %d\n", size);
         if(bytes_letti==0){
             printf("[ARCHIVIO] FIFO capolet chiusa in lettura\n");
             break;
         }
         if(bytes_letti != sizeof(int)){
-            printf("[ARCHIVIO ERRORE 1] Errore nella lettura della lunghezza della sequenza di byte: %ld \n", bytes_letti);
+            printf("[ARCHIVIO] Errore nella lettura della lunghezza della sequenza di byte: %ld \n", bytes_letti);
             break;
         }
 
@@ -487,8 +475,7 @@ void *capo_lettore_body(void *arg){
         }
 
         //aggiungo 0 alla fine della stringa
-        input_buffer[bytes_letti] = '\0' ;
-        printf("[ARCHIVIO] ho letto la sequenza di byte dalla FIFO capolet : %s\n", input_buffer);
+        input_buffer[bytes_letti] = '\0' ;;
 
         //tokenizzo la stringa
         char *copia;
@@ -509,8 +496,6 @@ void *capo_lettore_body(void *arg){
             token = strtok_r(NULL, ".,:; \n\r\t", &saveptr);
         }
     }
-   
-    fprintf(stdout, "[ARCHIVIO] CAPO LETTORE HA SCRITTO %d PAROLE\n", *(cl->np));
     //termino i lettori aggiungendo null nel buffer
     for(int i=0; i<*(cl->numero_lettori); i++){
         xsem_wait(cl->sem_free_slots, __LINE__, __FILE__);
