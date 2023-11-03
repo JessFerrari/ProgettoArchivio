@@ -115,6 +115,6 @@ int main(int argc, char *argv[]) {
 
     free(line);
     fclose(f);
-    printf("CLIENT1 COMPLETATO\n");
+    printf("<CLIENT1 COMPLETATO>\n");
     return 0;
 }

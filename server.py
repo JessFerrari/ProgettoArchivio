@@ -44,7 +44,7 @@ def write_in_pipe(pipe, size, data):
         try:
             if isinstance(size, bytes):
                 os.write(pipe, size)
-                Log.print_server(f"Ho scritto la lunghezza nella pipe {pipe}")
+                #Log.print_server(f"Ho scritto la lunghezza nella pipe {pipe}")
             else:
                 Log.print_server(f"Errore: size non è di tipo bytes",3)
         except (IOError, OSError) as e:
@@ -52,7 +52,7 @@ def write_in_pipe(pipe, size, data):
         try:
             if isinstance(data, bytes):
                 os.write(pipe, data)
-                Log.print_server(f"Ho scritto la sequenza di byte nella pipe {pipe}")
+                #Log.print_server(f"Ho scritto la sequenza di byte nella pipe {pipe}")
             else:
                 Log.print_server(f"Errore: data non è di tipo bytes",3)
         except (IOError, OSError) as e:
@@ -70,10 +70,10 @@ def gest_connessione(conn, addr, capolet, caposc):
     caposc : pipe caposc
     '''
     #Il client mi ha mandato una richiesta
-    Log.print_server(f"mi ha contattato il client{addr}")
+    #Log.print_server(f"mi ha contattato il client{addr}")
     #Ricevo un byte che mi indica se il client è di tipo 1 o 2
     client_type = recv_all(conn, 1).decode("utf-8")
-    Log.print_server(f"Il client{addr} ha invuiato la richiesta di connessione di tipo {client_type}")
+    #Log.print_server(f"Il client{addr} ha inviato la richiesta di connessione di tipo {client_type}")
     #Il client è di tipo 1
     if client_type == "1":
         #Instauro una connessione di tipo A
@@ -82,13 +82,13 @@ def gest_connessione(conn, addr, capolet, caposc):
     
         #Ricevo la lunghezza della sequenza di byte che sto per ricevere (4 bytes)
         length_in_bytes = recv_all(conn, 4)
-        Log.print_server(f"Ricevuta la lunghezza della sequenza di byte {length_in_bytes}")
+        #Log.print_server(f"Ricevuta la lunghezza della sequenza di byte {length_in_bytes}")
         #Trasformo la sequenza di byte in un intero
         length = struct.unpack('!i', length_in_bytes[:4])[0]
-        Log.print_server(f"La lunghezza della sequenza di byte {length}")
+        #Log.print_server(f"La lunghezza della sequenza di byte {length}")
         #Ricevo la sequenza di byte
         data = recv_all(conn, length)
-        Log.print_server(f"Ricevuta la sequenza di byte {data.decode('utf-8')}")
+        #Log.print_server(f"Ricevuta la sequenza di byte {data.decode('utf-8')}")
         #Invio la lunghezza della sequenza di byte
         write_in_pipe(capolet, length_in_bytes, data)
             
@@ -111,14 +111,14 @@ def gest_connessione(conn, addr, capolet, caposc):
             if length_in_bytes == b'\x00\x00\x00\x00':
                 Log.print_server(f"Ho ricevuto una sequenza di 0 bytes. Il client{addr} ha finito la connessione")
                 break
-            Log.print_server(f"Ricevuta lunghezza {length_in_bytes}")
+            #Log.print_server(f"Ricevuta lunghezza {length_in_bytes}")
             #Trasformo la sequenza di byte in un intero
             length = struct.unpack('!i', length_in_bytes[:4])[0]
-            Log.print_server(f"La lunghezza ricevuta è {length} bytes")
+            #Log.print_server(f"La lunghezza ricevuta è {length} bytes")
             
             #Ricevo la sequenza di byte
             data = recv_all(conn, length)
-            Log.print_server(f"Ricevuta la sequenza di byte {data}")
+            #Log.print_server(f"Ricevuta la sequenza di byte {data}")
 
             #Scrivo nella pipe caposc la dimensione e la sequenza di byte
             write_in_pipe(caposc, length_in_bytes, data)
@@ -128,7 +128,6 @@ def gest_connessione(conn, addr, capolet, caposc):
 
         #Registro le informazioni dei bytes scrittiInThe pipe capolet su file di log
         logging.info(f"Connessione di tipo B - byte scritti su 'caposc' -> {bytes_written_caposc}")
-        #HA SENSO RESETTARE bytes_written_caposc???? NO...
         #invio al client il numero di sequenze ricevute
         conn.sendall(struct.pack('i', tot_recived_seq))
         #chiudo la connessione
@@ -159,7 +158,7 @@ Funzione per terminare il server con il comando CTRL+C.
     # Invia il segnale SIGTERM al processo archivio
     archivio_subprocess.send_signal(signal.SIGTERM)
 
-    Log.normal_print("<[SERVER TERMINATO]>")
+    Log.normal_print("<SERVER TERMINATO>")
     exit()
 
 
@@ -176,7 +175,7 @@ def archivio_valgrind(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C passando anche valgrind
     archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio", str(readers), str(writers)])
-    Log.print_server(f"Ho lanciato il processo archivio {archivio_subprocess.pid} con valgrind")
+    Log.print_server(f"Lancio il processo archivio {archivio_subprocess.pid} con valgrind  con {readers} lettori e {writers} scrittori")
 
 
 def mainServer(numMaxThreads, writers, readers, valgrind):
@@ -203,11 +202,11 @@ def mainServer(numMaxThreads, writers, readers, valgrind):
 
     server_socket.listen(numMaxThreads)
 
-    Log.print_server(f"Server in ascolto su {host}:{port}")
+    #Log.print_server(f"Server in ascolto su {host}:{port}")
 
     #creo il threadpool per gestire i client
     executor = ThreadPoolExecutor(max_workers=numMaxThreads)
-    Log.print_server(f"threadpool in creato con {numMaxThreads} thread")
+    #Log.print_server(f"threadpool in creato con {numMaxThreads} thread")
 
     #inizializzo le pipes
     if not os.path.exists("capolet"):

@@ -95,4 +95,4 @@ if __name__ == '__main__':
         thread.join()
     
     #FINE
-    Log.normal_print(f"CLIENT2 TERMINATO")
+    Log.normal_print(f"<CLIENT2 TERMINATO>")

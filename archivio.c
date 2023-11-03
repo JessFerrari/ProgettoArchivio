@@ -187,7 +187,6 @@ int main (int argc, char *argv[]){
     if(xpthread_join(gestore_sg, NULL, QUI) !=0){
         xtermina("[ARCHIVIO] Errore nella join del thread gestore segnali\n", QUI);
     }
-    printf("[ARCHIVIO] Gestore segnali terminato\n");
 
     distruggi_hash();
 
@@ -203,7 +202,7 @@ int main (int argc, char *argv[]){
     
     free(buffsc);
     free(bufflet);
-    
+    printf("<ARCHIVIO TERMINATO>\n");
     return 0;
 }
 
