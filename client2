@@ -40,16 +40,14 @@ def sendfile(file):
             #leggo tutte le linee del file
             lines = f.readlines()
             for line in lines :
-                #Log.print_client(f"Linea da leggere: {line}", 2)
                 line = line.strip()
                 line_bytes = line.encode("utf-8")
                 lenght = len(line_bytes)
-                #Log.print_client(f"Linea da inviare: {line}, di lunghezza {lenght}")
                 if(lenght > 2048 ):
-                    Log.print_client(f"Linea troppo lunga: {line}")
+                    Log.print_client(f"Linea troppo lunga: {line}", 2)
                     continue
                 if(lenght == 0):
-                    #Log.print_client(f"Linea vuota: {line}")
+                    #Linea vuota
                     continue
                 else:
                     #Invio la lunghezza della linea
