@@ -42,19 +42,18 @@ def write_in_pipe(pipe, size, data):
     """
     with pipe_lock:
         try:
-            if isinstance(size, bytes):
-                os.write(pipe, size)
-                #Log.print_server(f"Ho scritto la lunghezza nella pipe {pipe}")
-            else:
-                Log.print_server(f"Errore: size non è di tipo bytes",3)
+            if not isinstance(size, bytes):
+                Log.print_server(f"Errore: size non era di tipo bytes",2)
+                size.encode()
+            os.write(pipe, size)
+
         except (IOError, OSError) as e:
             Log.print_server(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
         try:
-            if isinstance(data, bytes):
-                os.write(pipe, data)
-                #Log.print_server(f"Ho scritto la sequenza di byte nella pipe {pipe}")
-            else:
-                Log.print_server(f"Errore: data non è di tipo bytes",3)
+            if not isinstance(data, bytes):
+                Log.print_server(f"Errore: data non era di tipo bytes",2)
+                data.encode()
+            os.write(pipe, data)
         except (IOError, OSError) as e:
             Log.print_server(f"Errore durante la scrittura di size su {pipe}: {e}", 3)
 
@@ -200,10 +199,8 @@ def mainServer(numMaxThreads, writers, readers, valgrind):
     #inizializzo le pipes
     if not os.path.exists("capolet"):
         os.mkfifo("capolet", 0o0666)
-        Log.print_server(f"pipe capolet creato")
     if not os.path.exists("caposc"):
         os.mkfifo("caposc", 0o0666)
-        Log.print_server(f"pipe caposc creato")
 
     if(writers<3):
         writers = 3
@@ -219,9 +216,7 @@ def mainServer(numMaxThreads, writers, readers, valgrind):
     #apro le pipes
     try:
         capolet = os.open("capolet", os.O_WRONLY)
-        Log.print_server(f"pipe capolet aperta in scrittura")
         caposc = os.open("caposc", os.O_WRONLY)
-        Log.print_server(f"pipe caposc aperta in scrittura")
     except Exception as e:
         Log.print_server(f"Errore durante l'apertura delle pipes: {e}")
 

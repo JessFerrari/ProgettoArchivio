@@ -275,7 +275,6 @@ void *capo_scrittore_body(void *arg){
     if(fd==-1){
         xtermina("[ARCHIVIO] Errore apertura FIFO caposc.\n", __LINE__, __FILE__);
     }
-    printf("[ARCHIVIO] FIFO caposc aperta in lettura\n");
 
     //dati per leggere dalla pipe
     int size = 0;
@@ -295,7 +294,7 @@ void *capo_scrittore_body(void *arg){
         }
 
         if(bytes_letti == 0){
-            printf("[ARCHIVIO] FIFO caposc chiusa in lettura\n");
+            //FIFO caposc chiusa in scrittura\n");
             break;
         }
 
@@ -313,7 +312,7 @@ void *capo_scrittore_body(void *arg){
         //leggo la sequenza di n byte
         bytes_letti = read(fd, input_buffer, size * sizeof(char));
         if(bytes_letti==0){
-            printf("[ARCHIVIO] FIFO caposc chiusa in scrittura\n");
+            //FIFO caposc chiusa in scrittura
             break;
         }
         
@@ -413,8 +412,7 @@ void *capo_lettore_body(void *arg){
     int fd = open(FIFO_CAPOLET, O_RDONLY);
     if(fd==-1){
         xtermina("[ARCHIVIO] Errore apertura capolet.\n", __LINE__, __FILE__);
-    } 
-    printf("[ARCHIVIO] FIFO capolet aperto in lettura\n");
+    }
 
     //inizializzo i dati per i lettori
     pthread_mutex_t mutexL = PTHREAD_MUTEX_INITIALIZER;
@@ -448,7 +446,7 @@ void *capo_lettore_body(void *arg){
         bytes_letti = read(fd, &size, sizeof(int));
         size = ntohl(size);
         if(bytes_letti==0){
-            printf("[ARCHIVIO] FIFO capolet chiusa in lettura\n");
+            //FIFO capolet chiusa in scrittura
             break;
         }
         if(bytes_letti != sizeof(int)){
@@ -466,7 +464,7 @@ void *capo_lettore_body(void *arg){
         bytes_letti = read(fd, input_buffer, size);   
     
         if(bytes_letti==0){
-            printf("[ARCHIVIO] FIFO capolet chiusa in scrittura\n");
+            //FIFO capolet chiusa in scrittura
             break;
         }
         if(bytes_letti != size){
