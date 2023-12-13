@@ -38,7 +38,7 @@ def write_in_pipe(pipe, size, data):
     """Funzione per scrivere in una pipe.
     pipe : pipe
     size : numero di byte della sequenza
-    data : sequenza
+    data : sequenza 
     """
     with pipe_lock:
         try:
@@ -157,7 +157,7 @@ def archivio_normale(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C
     archivio_subprocess = subprocess.Popen(['./archivio', str(readers), str(writers)])
-    Log.print_server(f"Lancio il processo archivio {archivio_subprocess.pid} con {readers} lettori e {writers} scrittori")
+    Log.print_server(f"Lancio il processo archivio (PID :{archivio_subprocess.pid}), con {readers} lettori e {writers} scrittori")
 
 
 # Funzione che lancia archivio con valgrind, passando il numero di lettori e scrittori e i parametri che il professore ha utilizzato in manager.py
@@ -165,7 +165,7 @@ def archivio_valgrind(readers, writers):
     global server_socket, archivio_subprocess
     # Esegue il programma C passando anche valgrind
     archivio_subprocess = subprocess.Popen(["valgrind","--leak-check=full", "--show-leak-kinds=all",  "--log-file=valgrind-%p.log", "./archivio", str(readers), str(writers)])
-    Log.print_server(f"Lancio il processo archivio {archivio_subprocess.pid} con valgrind  con {readers} lettori e {writers} scrittori")
+    Log.print_server(f"Lancio il processo archivio (PID :{archivio_subprocess.pid}) con valgrind, con {readers} lettori e {writers} scrittori")
 
 
 def mainServer(numMaxThreads, writers, readers, valgrind):

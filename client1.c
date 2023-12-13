@@ -60,12 +60,10 @@ int main(int argc, char *argv[]) {
     while((bytes_read = getline(&line, &length, f)) != -1){
         //se la linea è vuota la salto
         if (strlen(line) == 1 && line[0] == '\n') {
-            printf("[CLIENT1] Linea vuota, la salto\n");
             continue;
         }
         //se la dimensione è > 2048 la salto
         if (strlen(line) > Max_sequence_length) {
-            printf("[CLIENT1] Linea troppo lunga, la salto\n");
             continue;
         }
         //La linea rispetta i giusti parametri e instauro una connessione
